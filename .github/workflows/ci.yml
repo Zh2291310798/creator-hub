@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check file size
+        run: |
+          SIZE=$(wc -c < index.html)
+          MAX=500000  # 500KB
+          echo "index.html: $SIZE bytes"
+          if [ "$SIZE" -gt "$MAX" ]; then
+            echo "⚠️  index.html exceeds 500KB — consider splitting"
+          fi
+
+      - name: Validate HTML
+        uses: Cyb3r-Jak3/html5validator-action@v7.2.0
+        with:
+          root: .
+          css: true
+        continue-on-error: true
+
+      - name: Check HTML structure
+        run: |
+          echo "=== Panel count ==="
+          grep -c 'id="panel-' index.html || true
+          echo "=== Script functions ==="
+          grep -c 'function ' index.html || true
+          echo "=== CSS variables ==="
+          grep -c '\-\-' index.html || true
+
+  deploy-pages:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

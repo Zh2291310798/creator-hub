@@ -79,6 +79,38 @@
 .auth-card h3 { margin:0 0 16px;font-family:var(--font-title);font-size:24px;text-align:center; }
 .auth-card .btn.big { font-size:19px;min-height:46px; }
 
+/* Onboarding */
+.onboarding-overlay { position:fixed;inset:0;z-index:1000;background:rgba(45,45,45,.6);align-items:center;justify-content:center;display:none; }
+.onboarding-overlay.show { display:flex; }
+.onboarding-card { background:var(--white);border:4px solid var(--ink);border-radius:var(--wobbly-lg);box-shadow:var(--shadow-big);padding:24px 28px;width:min(440px,92vw);max-height:80vh;overflow-y:auto; }
+.onboarding-progress { height:6px;background:var(--gray);border-radius:3px;margin-bottom:16px;overflow:hidden; }
+.onboarding-bar { height:100%;background:var(--blue);border-radius:3px;transition:width .3s ease;width:0%; }
+.onboarding-actions { display:flex;justify-content:space-between;margin-top:20px; }
+.onboarding-content-step { text-align:center; }
+.onboarding-content-step h3 { font-family:var(--font-title);font-size:26px;margin:0 0 8px; }
+.onboarding-content-step p { color:rgba(45,45,45,.6);margin:0 0 16px; }
+.onboarding-content-step .ob-list { text-align:left;margin:12px 0; }
+.onboarding-content-step .ob-item { padding:10px 12px;background:var(--gray);border-radius:8px;margin:6px 0;cursor:pointer;transition:background .15s; }
+.onboarding-content-step .ob-item:hover { background:var(--muted); }
+.onboarding-content-step .ob-item.selected { background:var(--blue);color:#fff; }
+
+/* Notification bell */
+.notify-bell { position:relative;cursor:pointer;font-size:22px;margin-right:8px;user-select:none; }
+.notify-bell:hover { transform:scale(1.1); }
+.notify-badge { position:absolute;top:-6px;right:-6px;background:var(--red);color:#fff;font-size:11px;font-weight:700;min-width:18px;height:18px;border-radius:9px;display:flex;align-items:center;justify-content:center;padding:0 4px; }
+.notify-dropdown { position:absolute;top:38px;right:0;width:360px;max-height:420px;background:var(--white);border:3px solid var(--ink);border-radius:12px;box-shadow:var(--shadow-big);z-index:500;overflow:hidden; }
+.notify-head { display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:2px solid var(--muted); }
+.notify-head .mini-btn-link { font-size:13px;color:var(--red);cursor:pointer;background:none;border:none; }
+.notify-list { overflow-y:auto;max-height:350px; }
+.notify-item { padding:12px 16px;border-bottom:1px solid var(--gray);cursor:pointer;transition:background .12s;display:flex;gap:10px;align-items:flex-start; }
+.notify-item:hover { background:var(--gray); }
+.notify-item.unread { background:var(--postit); }
+.notify-item .notify-emoji { font-size:18px;flex-shrink:0; }
+.notify-item .notify-body { flex:1;min-width:0; }
+.notify-item .notify-body b { font-size:14px; }
+.notify-item .notify-body p { margin:2px 0 0;font-size:13px;color:rgba(45,45,45,.6);white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+.notify-item .notify-time { font-size:11px;color:rgba(45,45,45,.35);flex-shrink:0; }
+
 /* ========================================
    BASE STYLES
    ======================================== */
@@ -689,6 +721,11 @@ input, textarea, select { font: inherit; }
 .match-col.creator-col h3 { color: var(--red); }
 .match-col .card { margin-bottom: 14px; }
 .match-col .card:last-child { margin-bottom: 0; }
+
+/* LOCAL MATCH */
+.local-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:16px; padding:16px 20px; }
+.local-creators-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:12px; padding:0 20px 16px; }
+#localDemandForm { margin:0 20px 16px; }
 
 /* ========================================
    COMMUNITY / POSTS
@@ -1432,6 +1469,18 @@ input, textarea, select { font: inherit; }
 <!-- ========================================
      LOGIN / REGISTER OVERLAY
      ======================================== -->
+<!-- Onboarding Overlay -->
+<div class="onboarding-overlay" id="onboardingOverlay" style="display:none;">
+  <div class="onboarding-card" id="onboardingCard">
+    <div class="onboarding-progress"><div class="onboarding-bar" id="onboardingBar"></div></div>
+    <div id="onboardingContent"></div>
+    <div class="onboarding-actions">
+      <button class="btn secondary" onclick="skipOnboarding()">跳过</button>
+      <button class="btn" id="onboardingNextBtn" onclick="nextOnboardingStep()">下一步 →</button>
+    </div>
+  </div>
+</div>
+
 <div class="auth-overlay" id="authOverlay">
   <div class="auth-card" id="authCard">
     <div class="auth-header">
@@ -1459,7 +1508,7 @@ input, textarea, select { font: inherit; }
       <div class="form-row"><label>密码</label><input type="password" id="regPass" placeholder="至少6位" /></div>
       <div class="form-row"><label>确认密码</label><input type="password" id="regPass2" placeholder="再输一遍" /></div>
       <div class="form-row"><label>身份</label>
-        <select id="regRole"><option value="creator">创作者 / 达人</option><option value="brand">品牌方</option><option value="merchant">商家 / 供应链</option></select>
+        <select id="regRole"><option value="creator">创作者 / 达人</option><option value="brand">品牌方</option><option value="recruiter">招聘方</option><option value="freelancer">自由职业者</option><option value="student">🎓 在校学生 / 应届毕业生</option><option value="career_switcher">🆕 想转行入行</option></select>
       </div>
       <button class="btn big" onclick="doRegister()" style="width:100%;background:var(--green);">注册</button>
       <p style="text-align:center;margin-top:14px;font-size:15px;">
@@ -1488,9 +1537,17 @@ input, textarea, select { font: inherit; }
       <button class="tab-btn" data-tab="chat">💬 聊天 <span class="tab-badge" id="chatBadge">3</span></button>
       <button class="tab-btn" data-tab="recruit">💼 招募</button>
       <button class="tab-btn" data-tab="match">🤝 对接</button>
+      <button class="tab-btn" data-tab="local">📍 本地</button>
       <button class="tab-btn" data-tab="community">📝 社区</button>
       <button class="tab-btn" data-tab="friends">👥 好友 <span class="tab-badge" id="friendBadge" style="display:none">0</span></button>
     </nav>
+    <div class="notify-bell" id="notifyBell" onclick="toggleNotifyDropdown(event)" title="消息通知">
+      🔔<span class="notify-badge" id="notifyBadge" style="display:none;">0</span>
+      <div class="notify-dropdown" id="notifyDropdown" style="display:none;">
+        <div class="notify-head"><b>📬 消息中心</b><button class="mini-btn-link" onclick="event.stopPropagation();clearAllNotifications()">清空</button></div>
+        <div class="notify-list" id="notifyList"><p style="color:rgba(45,45,45,.4);text-align:center;padding:20px;">暂无消息</p></div>
+      </div>
+    </div>
     <div class="user-mini" onclick="switchTab('profile')" style="cursor:pointer;" title="个人主页 & 设置">
       <span class="avatar" id="topAvatar">我</span>
       <span>我的主页 ⚙</span>
@@ -1598,7 +1655,24 @@ input, textarea, select { font: inherit; }
         <span class="sticky-label">自助招募</span>
         <h2 class="section-title">招人 / 找活儿</h2>
       </div>
-      <button class="btn green" onclick="showToast('发布功能已打开！填写信息即可发布招募')">+ 发布招募</button>
+      <button class="btn green" onclick="toggleRecruitForm()">+ 发布招募</button>
+    </div>
+    <div class="form-card" id="recruitForm" style="display:none;margin:0 20px 16px;">
+      <h3>📋 发布招募</h3>
+      <div class="form-row"><label>岗位标题</label><input type="text" id="rfTitle" placeholder="例如：小红书美妆达人招募" /></div>
+      <div class="form-row"><label>公司/品牌</label><input type="text" id="rfCompany" placeholder="你的公司或品牌名" /></div>
+      <div class="form-row" style="display:flex;gap:12px;">
+        <div style="flex:1;"><label>岗位类型</label><select id="rfType"><option value="maker">达人/主播</option><option value="merchant">商家/品牌</option><option value="tech">技术/运营</option><option value="urgent">🔥 急招</option></select></div>
+        <div style="flex:1;"><label>工作模式</label><select id="rfMode"><option value="fulltime">全职</option><option value="parttime">兼职</option><option value="project">项目制</option><option value="intern">实习</option></select></div>
+      </div>
+      <div class="form-row"><label>描述</label><textarea id="rfDesc" rows="2" placeholder="详细描述岗位职责和要求..."></textarea></div>
+      <div class="form-row" style="display:flex;gap:12px;">
+        <div style="flex:1;"><label>薪资/预算</label><input type="text" id="rfBudget" placeholder="例如：¥5,000-15,000/条" /></div>
+        <div style="flex:1;"><label>城市（可选）</label><input type="text" id="rfCity" placeholder="例如：成都" /></div>
+      </div>
+      <div class="form-row"><label>关联平台</label><select id="rfPlatform" multiple style="min-height:100px;"><option value="xhs">小红书</option><option value="douyin">抖音</option><option value="kuaishou">快手</option><option value="bilibili">B站</option><option value="wechat">视频号</option><option value="weibo">微博</option><option value="youtube">YouTube</option><option value="tiktok">TikTok</option><option value="all">全平台</option></select></div>
+      <button class="btn green" onclick="publishRecruit()">发布招募</button>
+      <span style="margin-left:12px;font-size:15px;color:var(--sage);" id="rfFeedback"></span>
     </div>
     <div class="filters" id="recruitFilters">
       <button class="filter-btn active" data-filter="all">全部</button>
@@ -1672,6 +1746,53 @@ input, textarea, select { font: inherit; }
   </section>
 
   <!-- ========================================
+       LOCAL MATCH
+       ======================================== -->
+  <section class="section-panel" id="panel-local">
+    <div class="section-head">
+      <div>
+        <span class="sticky-label">本地对接</span>
+        <h2 class="section-title">📍 同城达人 × 本地商家</h2>
+      </div>
+      <button class="btn" onclick="toggleLocalDemandForm()">📢 发布需求</button>
+    </div>
+
+    <div class="form-card" id="localDemandForm" style="display:none;">
+      <h3>📢 发布本地推广需求</h3>
+      <div class="form-row"><label>商家名称</label><input type="text" id="ldBusiness" placeholder="你的店铺/品牌名称" /></div>
+      <div class="form-row"><label>品类</label>
+        <select id="ldCategory"><option value="food">🍔 餐饮</option><option value="beauty">💆 美容</option><option value="fitness">🏋 健身</option><option value="entertainment">🎬 娱乐</option><option value="hotel">🏨 酒店</option><option value="retail">🛒 零售</option><option value="other">📌 其他</option></select>
+      </div>
+      <div class="form-row"><label>城市</label><input type="text" id="ldCity" placeholder="例如：成都" /></div>
+      <div class="form-row"><label>区域（可选）</label><input type="text" id="ldDistrict" placeholder="例如：锦江区" /></div>
+      <div class="form-row"><label>需求标题</label><input type="text" id="ldTitle" placeholder="例如：探店视频拍摄" /></div>
+      <div class="form-row"><label>需求描述</label><textarea id="ldDesc" rows="2" placeholder="详细描述你的推广需求..."></textarea></div>
+      <div class="form-row"><label>预算区间</label><input type="text" id="ldBudget" placeholder="例如：¥500-800/条" /></div>
+      <div class="form-row"><label>达人要求</label><input type="text" id="ldRequirements" placeholder="例如：本地达人，粉丝≥1K" /></div>
+      <div class="form-row"><label>联系方式</label><input type="text" id="ldContact" placeholder="微信/手机号" /></div>
+      <button class="btn green" onclick="publishLocalDemand()">发布需求</button>
+      <span style="margin-left:12px;font-size:15px;color:var(--sage);" id="ldFeedback"></span>
+    </div>
+
+    <div class="filters" id="localFilters">
+      <button class="filter-btn active" data-lfilter="all">全部</button>
+      <button class="filter-btn" data-lfilter="food">🍔 餐饮</button>
+      <button class="filter-btn" data-lfilter="beauty">💆 美容</button>
+      <button class="filter-btn" data-lfilter="fitness">🏋 健身</button>
+      <button class="filter-btn" data-lfilter="entertainment">🎬 娱乐</button>
+      <button class="filter-btn" data-lfilter="hotel">🏨 酒店</button>
+      <button class="filter-btn" data-lfilter="retail">🛒 零售</button>
+    </div>
+    <div class="form-row" style="padding:0 20px;"><label>📍 筛选城市</label><input type="text" id="localCityFilter" placeholder="输入城市名筛选..." oninput="renderLocalMatch()" style="max-width:200px;" /></div>
+
+    <div class="local-grid" id="localDemandsGrid"></div>
+    <div class="local-creators-section" style="margin-top:24px;">
+      <h3 style="font-family:var(--font-title);margin:0 0 12px;">🏆 本地达人推荐</h3>
+      <div class="local-creators-grid" id="localCreatorsGrid"></div>
+    </div>
+  </section>
+
+  <!-- ========================================
        COMMUNITY
        ======================================== -->
   <section class="section-panel" id="panel-community">
@@ -1692,6 +1813,8 @@ input, textarea, select { font: inherit; }
           <option value="guide">干货教程</option>
           <option value="qa">求助问答</option>
           <option value="news">行业动态</option>
+          <option value="newbie">🆕 新人报到</option>
+          <option value="industry">💬 行业讨论</option>
         </select>
       </div>
       <div class="form-row">
@@ -1732,6 +1855,8 @@ input, textarea, select { font: inherit; }
       <button class="filter-btn" data-filter="guide">干货教程</button>
       <button class="filter-btn" data-filter="qa">求助问答</button>
       <button class="filter-btn" data-filter="news">行业动态</button>
+      <button class="filter-btn" data-filter="newbie">🆕新人报到</button>
+      <button class="filter-btn" data-filter="industry">💬行业讨论</button>
     </div>
     <div class="post-grid" id="postGrid"></div>
   </section>
@@ -1794,6 +1919,8 @@ input, textarea, select { font: inherit; }
           </div>
         </div>
         <p class="profile-bio" id="profileBio">跨平台创作者，分享创作和运营经验</p>
+        <p class="profile-city" id="profileCity" style="font-size:15px;color:rgba(45,45,45,.6);margin:4px 0;"></p>
+        <p class="profile-work-status" id="profileWorkStatus" style="font-size:15px;margin:4px 0;"></p>
         <div class="level-bar-wrap"><div class="level-bar" id="levelBar"></div><span class="level-text" id="levelText">Lv.1</span></div>
         <div class="profile-stats-row">
           <div class="profile-stat"><b id="profilePosts">0</b>帖子</div>
@@ -1838,7 +1965,10 @@ input, textarea, select { font: inherit; }
           <select id="setRole">
             <option value="creator">创作者 / 达人</option>
             <option value="brand">品牌方</option>
-            <option value="merchant">商家 / 供应链</option>
+            <option value="recruiter">招聘方</option>
+            <option value="freelancer">自由职业者</option>
+            <option value="student">🎓 在校学生 / 应届毕业生</option>
+            <option value="career_switcher">🆕 想转行入行</option>
           </select>
         </div>
         <div class="form-row">
@@ -1862,6 +1992,20 @@ input, textarea, select { font: inherit; }
         <div class="form-row">
           <label>标签（逗号分隔）</label>
           <input type="text" id="setTags" value="创作,运营,探店" />
+        </div>
+        <div class="form-row">
+          <label>📍 所在城市</label>
+          <input type="text" id="setCity" placeholder="例如：成都" />
+        </div>
+        <div class="form-row">
+          <label>💼 工作状态</label>
+          <select id="setWorkStatus">
+            <option value="">暂不设置</option>
+            <option value="fulltime">🟢 可全职</option>
+            <option value="parttime">🔵 可兼职</option>
+            <option value="project">🟠 可项目制</option>
+            <option value="not_looking">⚫ 暂不求职</option>
+          </select>
         </div>
         <div class="form-row">
           <label>🎨 头像风格</label>
@@ -1968,6 +2112,36 @@ input, textarea, select { font: inherit; }
      ======================================== -->
 <script>
 // ========================================
+// TRACKING — event logging (MVP: localStorage)
+// ========================================
+function getSessionId(){var t=sessionStorage.getItem("_sid");if(!t){t="s"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);sessionStorage.setItem("_sid",t)}return t}
+function track(e,p){try{p=p||{};var a=JSON.parse(localStorage.getItem("creatorhub_events")||"[]");a.push({event:e,props:p,user:localStorage.getItem("creatorhub_session")||"anonymous",timestamp:Date.now(),session_id:getSessionId()});if(a.length>1000)a.splice(0,a.length-1000);localStorage.setItem("creatorhub_events",JSON.stringify(a))}catch(_){}}
+
+// ========================================
+// ERROR CAPTURE & A/B ENGINE
+// ========================================
+
+// Global JS error capture
+window.addEventListener('error',function(e){
+  if(e.error){track('js_error',{message:e.error.message||'Unknown error',filename:e.filename?e.filename.split('/').pop():'',lineno:e.lineno||0,colno:e.colno||0});}
+});
+window.addEventListener('unhandledrejection',function(e){
+  track('js_error',{message:'UnhandledRejection: '+(e.reason&&e.reason.message?e.reason.message:String(e.reason)),filename:'',lineno:0,colno:0});
+});
+
+// A/B testing engine
+var AB={
+  get:function(experimentId){
+    var key='ab_'+experimentId;
+    var bucket=localStorage.getItem(key);
+    if(!bucket){bucket=Math.random()<0.5?'A':'B';localStorage.setItem(key,bucket);track('ab_exposure',{experiment:experimentId,bucket:bucket});}
+    return bucket;
+  },
+  force:function(experimentId,bucket){localStorage.setItem('ab_'+experimentId,bucket);},
+  list:function(){var r={};for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(k.indexOf('ab_')===0)r[k.slice(3)]=localStorage.getItem(k);}return r;},
+  reset:function(experimentId){localStorage.removeItem('ab_'+experimentId);}
+};
+// ========================================
 // AUTH
 // ========================================
 var currentUser = null;
@@ -2011,6 +2185,12 @@ function initAuth() {
     renderProfile();
     updateLevelDisplay();
     updateMyAvatar();
+    // Onboarding check for auto-login users
+    var role=myProfile.role;
+    var obData=JSON.parse(localStorage.getItem('creatorhub_onboarding')||'{}');
+    if((role==='student'||role==='career_switcher')&&!obData[currentUser]){setTimeout(function(){showOnboarding();},500);}
+    setTimeout(function(){checkNotifications();},600);
+    setTimeout(function(){updateNotifyBadge();},700);
   }
 }
 
@@ -2028,6 +2208,7 @@ function doLogin() {
   myProfile.roleLabel = userDB[user].roleLabel;
   myProfile.avatar = user.slice(0,1);
   localStorage.setItem('creatorhub_session', user);
+  track('user_login',{is_new:false});
   document.getElementById('authOverlay').style.display = 'none';
   document.getElementById('mainApp').style.display = '';
   document.querySelector('.user-mini .avatar').textContent = myProfile.avatar;
@@ -2039,6 +2220,12 @@ function doLogin() {
   renderProfile();
   updateLevelDisplay();
   init();
+  // Check onboarding for new student/career_switcher users
+  var role=myProfile.role;
+  var obData=JSON.parse(localStorage.getItem('creatorhub_onboarding')||'{}');
+  if((role==='student'||role==='career_switcher')&&!obData[currentUser]){setTimeout(function(){showOnboarding();},500);}
+  setTimeout(function(){checkNotifications();},600);
+  setTimeout(function(){updateNotifyBadge();},700);
   showToast('欢迎回来，' + myProfile.name + '！👋');
 }
 
@@ -2054,9 +2241,10 @@ function doRegister() {
   if (pass.length < 6) { err.textContent = '密码至少6位'; return; }
   if (pass !== pass2) { err.textContent = '两次密码不一致'; return; }
   if (userDB[user]) { err.textContent = '用户名已被注册'; return; }
-  var roleMap = { creator:'创作者 / 达人', brand:'品牌方', merchant:'商家 / 供应链' };
+  var roleMap = { creator:'创作者 / 达人', brand:'品牌方', recruiter:'招聘方', freelancer:'自由职业者', student:'🎓 在校学生 / 应届毕业生', career_switcher:'🆕 想转行入行' };
   userDB[user] = { name:user, password:pass, role:role, roleLabel:roleMap[role] };
   localStorage.setItem('creatorhub_users', JSON.stringify(userDB));
+  track('user_register',{role:role});
   showRegister(); // switch back to login
   showToast('注册成功！请登录');
   document.getElementById('loginUser').value = user;
@@ -2242,6 +2430,7 @@ document.addEventListener('DOMContentLoaded', function(){
   var style = document.createElement('style');
   style.textContent = '.level-bar::after { width: var(--progress, 0%); }';
   document.head.appendChild(style);
+  setTimeout(function(){try{var perf=performance.getEntriesByType("navigation")[0];if(perf&&!sessionStorage.getItem("_perf_logged")){track("page_performance",{dom_ready:Math.round(perf.domContentLoadedEventEnd-perf.domContentLoadedEventStart),load_complete:Math.round(perf.loadEventEnd-perf.loadEventStart),total:Math.round(perf.loadEventEnd)});sessionStorage.setItem("_perf_logged","1");}}catch(e){}},0);
 });
 
 // ========================================
@@ -2487,7 +2676,11 @@ function sendMatchMsg(){
   var msg = document.getElementById('msgDialogInput').value.trim();
   if(!msg){ showToast('请写一段留言');return; }
   closeMatchMsg();
-  showToast('已发送意向给 '+_matchMsgTarget+'：「'+msg.slice(0,30)+(msg.length>30?'...':'')+'」');
+  track('match_intent_send',{target_user:_matchMsgTarget});
+  // Extract actual name from "name (role)" format
+  var targetName=_matchMsgTarget.replace(/\s*\(.*\)\s*/,'');
+  deliverNotification(targetName,'🤝 合作意向：'+msg,'对接-'+targetName);
+  showToast('已发送意向给 '+_matchMsgTarget+'，对方将在聊天中收到通知 💌');
   document.getElementById('msgDialogInput').value = '';
 }
 
@@ -2519,6 +2712,7 @@ function publishMatch(){
     item.creator=myProfile.name;item.avatar=myProfile.name.slice(0,1);item.avatarBg='';
     creatorSeekingData.unshift(item);
   }
+  track('match_demand_publish',{demand_type:role,platform:platforms[0]});
   renderMatch();
   toggleMatchForm();
   document.getElementById('matchTitle').value='';
@@ -2683,7 +2877,9 @@ function pickPath(role){
   setTimeout(function(){showToast("身份已切换："+labels[role]);switchTab("match");},500);
 }
 
+var _currentTab='home';
 function switchTab(tab) {
+  if(tab!==_currentTab){track('page_view',{page_name:tab,previous_page:_currentTab});_currentTab=tab;}
   document.querySelectorAll('.section-panel').forEach(function(p){p.classList.remove('active');});
   document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.remove('active');});
   document.getElementById('panel-' + tab).classList.add('active');
@@ -2692,6 +2888,7 @@ function switchTab(tab) {
   if (tab === 'chat') renderChatContacts();
   if (tab === 'recruit') renderRecruits();
   if (tab === 'match') renderMatch();
+  if (tab === 'local') renderLocalMatch();
   if (tab === 'community') renderPosts();
   if (tab === 'square') renderFeed();
   if (tab === 'friends') renderFriendsList();
@@ -2802,6 +2999,7 @@ function sendWorldMessage() {
   var time = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
   worldChat.push({ from:myProfile.name, text:text, time:time });
   input.value = '';
+  track('chat_message_send',{chat_type:'world'});
   renderWorldChat();
   renderChatContacts();
   // Simulate random reply
@@ -2854,6 +3052,111 @@ function renderChatMessages() {
 }
 
 var _lastChatXP = 0;
+
+// Notification delivery — sends message to target's chat contacts AND notification bell
+function deliverNotification(targetName, msgText, source) {
+  if(!targetName||targetName===myProfile.name)return;
+  var now=new Date();var time=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+  // Add to sender's contacts so they can track the conversation
+  var cid='f_'+targetName;
+  var existing=contacts.find(function(c){return c.id===cid||c.name===targetName;});
+  if(existing){
+    existing.messages.push({from:'me',text:msgText,time:time});
+    existing.lastMsg='我：'+msgText.slice(0,30);
+  }else{
+    contacts.push({id:cid,name:targetName,avatar:targetName.slice(0,1),avatarBg:avatarGradient(targetName),platform:'all',unread:0,lastMsg:'我：'+msgText.slice(0,30),messages:[{from:'me',text:msgText,time:time}]});
+  }
+  // Store cross-session notification for target
+  try{
+    var notifs=JSON.parse(localStorage.getItem('creatorhub_notifications')||'{}');
+    if(!notifs[targetName])notifs[targetName]=[];
+    notifs[targetName].push({from:myProfile.name,text:msgText,source:source,time:Date.now(),read:false});
+    localStorage.setItem('creatorhub_notifications',JSON.stringify(notifs));
+  }catch(_){}
+  renderChatContacts();
+}
+
+// Check unread notifications for current user on login
+function checkNotifications() {
+  try{
+    var notifs=JSON.parse(localStorage.getItem('creatorhub_notifications')||'{}');
+    var mine=notifs[myProfile.name]||[];
+    var unread=mine.filter(function(n){return !n.read;});
+    var emojiMap={对接:'🤝',本地:'📍',招募:'💼',评论:'💬',好友:'👥'};
+    if(unread.length>0){
+      unread.forEach(function(n){
+        var cid='f_'+n.from;
+        var existing=contacts.find(function(c){return c.id===cid||c.name===n.from;});
+        var t=new Date(n.time);var time=String(t.getHours()).padStart(2,'0')+':'+String(t.getMinutes()).padStart(2,'0');
+        if(existing){
+          existing.messages.push({from:'them',text:n.text,time:time});
+          existing.lastMsg=n.from+'：'+n.text.slice(0,30);
+          existing.unread=(existing.unread||0)+1;
+        }else{
+          contacts.push({id:cid,name:n.from,avatar:n.from.slice(0,1),avatarBg:avatarGradient(n.from),platform:'all',unread:1,lastMsg:n.from+'：'+n.text.slice(0,30),messages:[{from:'them',text:n.text,time:time}]});
+        }
+        var src=n.source||'';var em='💬';var act='chat:'+n.from;
+        for(var k in emojiMap){if(src.indexOf(k)>=0){em=emojiMap[k];act=k==='好友'?'friends':k==='招募'?'recruit':k==='对接'?'match':k==='本地'?'local':'community';break;}}
+        saveNotify(em,n.from+' → 你',(n.text||'').slice(0,60),act);
+      });
+      mine.forEach(function(n){n.read=true;});
+      notifs[myProfile.name]=mine;
+      localStorage.setItem('creatorhub_notifications',JSON.stringify(notifs));
+      updateChatBadge();
+      renderChatContacts();
+    }
+    // Always update badge even if no new unread — existing list may have entries
+    updateNotifyBadge();
+  }catch(_){}
+}
+
+// Notification center — parallel to chat notifications, for the bell dropdown
+function saveNotify(emoji, title, body, action) {
+  var list = JSON.parse(localStorage.getItem('creatorhub_notify_list') || '[]');
+  list.unshift({ emoji: emoji, title: title, body: body, action: action, time: Date.now(), read: false });
+  if (list.length > 100) list.splice(100);
+  localStorage.setItem('creatorhub_notify_list', JSON.stringify(list));
+  updateNotifyBadge();
+}
+function updateNotifyBadge() {
+  var list = JSON.parse(localStorage.getItem('creatorhub_notify_list') || '[]');
+  var unread = list.filter(function(n) { return !n.read; }).length;
+  var badge = document.getElementById('notifyBadge');
+  if (badge) { badge.textContent = unread > 99 ? '99+' : unread; badge.style.display = unread > 0 ? '' : 'none'; }
+}
+function toggleNotifyDropdown(e) {
+  e.stopPropagation();
+  var dd = document.getElementById('notifyDropdown');
+  if (dd.style.display === 'none') { renderNotifications(); dd.style.display = ''; } else { dd.style.display = 'none'; }
+}
+document.addEventListener('click', function() { var dd = document.getElementById('notifyDropdown'); if (dd) dd.style.display = 'none'; });
+function renderNotifications() {
+  var list = JSON.parse(localStorage.getItem('creatorhub_notify_list') || '[]');
+  var container = document.getElementById('notifyList');
+  if (!list.length) { container.innerHTML = '<p style="color:rgba(45,45,45,.4);text-align:center;padding:20px;">暂无消息</p>'; return; }
+  container.innerHTML = list.map(function(n) {
+    var t = new Date(n.time); var timeStr = t.getMonth()+1+'/'+t.getDate()+' '+String(t.getHours()).padStart(2,'0')+':'+String(t.getMinutes()).padStart(2,'0');
+    return '<div class="notify-item'+(n.read?'':' unread')+'" onclick="handleNotifyClick(\''+String(list.indexOf(n))+'\',\''+(n.action||'').replace(/'/g,'\\\'')+'\')"><span class="notify-emoji">'+n.emoji+'</span><div class="notify-body"><b>'+n.title+'</b><p>'+n.body+'</p></div><span class="notify-time">'+timeStr+'</span></div>';
+  }).join('');
+  // Mark all as read in UI
+  list.forEach(function(n) { n.read = true; });
+  localStorage.setItem('creatorhub_notify_list', JSON.stringify(list));
+  updateNotifyBadge();
+}
+function handleNotifyClick(idx, action) {
+  document.getElementById('notifyDropdown').style.display = 'none';
+  if (action && action.indexOf('chat:') === 0) { var uid = action.slice(5); chatWithFriend(uid); return; }
+  if (action === 'friends') { switchTab('friends'); return; }
+  if (action === 'match') { switchTab('match'); return; }
+  if (action === 'recruit') { switchTab('recruit'); return; }
+  if (action === 'local') { switchTab('local'); return; }
+  if (action === 'community') { switchTab('community'); return; }
+}
+function clearAllNotifications() {
+  localStorage.setItem('creatorhub_notify_list', '[]');
+  renderNotifications(); updateNotifyBadge();
+}
+
 function sendMessage() {
   if (activeContact && activeContact.id === 'world') { sendWorldMessage(); return; }
   const input = document.getElementById('chatInput');
@@ -2866,6 +3169,7 @@ function sendMessage() {
   activeContact.messages.push({ from: 'me', text, time });
   activeContact.lastMsg = text;
   input.value = '';
+  track('chat_message_send',{chat_type:'private',target_user:activeContact.name||activeContact.id});
   // XP for chat (cooldown 60s)
   var now2 = Date.now();
   if (now2 - _lastChatXP > 60000) { _lastChatXP = now2; addXP(5, '聊天发言'); }
@@ -2942,6 +3246,7 @@ handleTopbarWrap();
 // RECRUIT
 // ========================================
 function renderRecruits(filter = 'all') {
+  track('recruit_view',{filter:filter});
   let items = filter === 'all' ? recruits : recruits.filter(r => {
     if (['urgent','maker','merchant','tech'].includes(filter)) return r.type === filter || r.statusClass === filter;
     if (filter === 'all-plat') return r.platforms.length > 1;
@@ -2954,7 +3259,7 @@ function renderRecruits(filter = 'all') {
         <span class="card-no">#${String(i+1).padStart(2,'0')}</span>
       </div>
       <h3>${escapeHtml(r.title)}</h3>
-      <div class="budget">${escapeHtml(r.budget)}</div>
+      <div class="budget">${escapeHtml(r.budget)}${r.mode ? ' · '+escapeHtml(r.mode) : ''}${r.city ? ' · 📍'+escapeHtml(r.city) : ''}</div>
       <p class="desc">${escapeHtml(r.desc)}</p>
       <div class="platform-tags">${r.platforms.map(platformTagHtml).join('')}</div>
       <div class="tags">${r.tags.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>
@@ -2989,12 +3294,57 @@ function openRecruitDrawer(id) {
   document.getElementById('drawerPlatforms').innerHTML = r.platforms.map(platformTagHtml).join('');
   document.getElementById('drawerTags').innerHTML = r.tags.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('');
   // Restore recruit actions
-  document.getElementById('drawerActions').innerHTML = `
-    <button class="btn" onclick="showToast('已发送意向！对方会收到通知')" style="font-size:18px;">🤝 我有意向</button>
-    <button class="btn secondary" onclick="showToast('已复制联系方式')">📋 复制联系方式</button>
-  `;
+  document.getElementById('drawerActions').innerHTML =
+    '<button class="btn" onclick="deliverNotification(\''+escapeHtml(r.poster)+'\',\'💼 招募意向：对「'+escapeHtml(r.title)+'」感兴趣\',\'招募\');showToast(\'已发送意向！对方将在聊天中收到通知 💌\');addXP(30,\'招募意向\');" style="font-size:18px;">🤝 我有意向</button>' +
+    '<button class="btn secondary" onclick="showToast(\'已复制联系方式\')">📋 复制联系方式</button>';
   currentPostId = null;
   openDrawer();
+}
+
+function toggleRecruitForm() {
+  var f = document.getElementById('recruitForm');
+  f.style.display = f.style.display === 'none' ? '' : 'none';
+}
+function publishRecruit() {
+  var title = document.getElementById('rfTitle').value.trim();
+  var company = document.getElementById('rfCompany').value.trim();
+  var type = document.getElementById('rfType').value;
+  var mode = document.getElementById('rfMode').value;
+  var desc = document.getElementById('rfDesc').value.trim();
+  var budget = document.getElementById('rfBudget').value.trim();
+  var city = document.getElementById('rfCity').value.trim();
+  var sel = document.getElementById('rfPlatform');
+  var platforms = Array.from(sel.selectedOptions).map(function(o) { return o.value; });
+  if (!platforms.length) platforms = ['all'];
+  var fb = document.getElementById('rfFeedback');
+  if (!title || !company || !desc) { fb.textContent = '标题、公司和描述不能为空！'; fb.style.color = 'var(--red)'; return; }
+  var modeLabels = { fulltime: '全职', parttime: '兼职', project: '项目制', intern: '实习' };
+  recruits.unshift({
+    id: 'r' + Date.now(),
+    title: title,
+    poster: company,
+    avatar: company.slice(0, 1),
+    avatarBg: '',
+    type: type,
+    mode: modeLabels[mode] || mode,
+    desc: desc,
+    detail: desc,
+    budget: budget || '面议',
+    city: city,
+    platforms: platforms,
+    tags: [type === 'urgent' ? '急招' : type === 'maker' ? '达人' : type === 'merchant' ? '商家' : '技能', modeLabels[mode] || ''],
+    status: '招募中',
+    statusClass: 'active-recruit',
+    postedAt: Date.now()
+  });
+  // Clear form
+  document.getElementById('rfTitle').value = ''; document.getElementById('rfCompany').value = ''; document.getElementById('rfDesc').value = ''; document.getElementById('rfBudget').value = ''; document.getElementById('rfCity').value = '';
+  track('recruit_publish',{type:type,mode:mode,city:city,platforms_count:platforms.length});
+  toggleRecruitForm();
+  renderRecruits();
+  fb.textContent = '招募已发布！'; fb.style.color = 'var(--sage)';
+  setTimeout(function() { fb.textContent = ''; }, 2000);
+  addXP(30, '发布招募');
 }
 
 // Match filters
@@ -3004,6 +3354,7 @@ document.getElementById('matchFilters').addEventListener('click', function(e){
   document.querySelectorAll('#matchFilters .filter-btn').forEach(function(b){b.classList.remove('active');});
   btn.classList.add('active');
   matchFilter = btn.dataset.mfilter;
+  track('match_filter_apply',{filter_type:'view',filter_value:matchFilter});
   renderMatch();
 });
 
@@ -3074,6 +3425,7 @@ function renderMatch() {
       </div>
     </article>
   `).join('');
+  track('match_view',{view_mode:matchFilter});
 }
 
 function deleteMatch(id, type) {
@@ -3081,6 +3433,78 @@ function deleteMatch(id, type) {
   var arr = type === 'brand' ? brandSeekingData : creatorSeekingData;
   var idx = arr.findIndex(function(x){ return x.id === id; });
   if (idx >= 0) { arr.splice(idx, 1); renderMatch(); showToast('已删除'); }
+}
+
+// ========================================
+// LOCAL MATCH
+// ========================================
+var localDemands = [];
+var localFilter = 'all';
+try { var savedLD = localStorage.getItem('creatorhub_local_demands'); if (savedLD) localDemands = JSON.parse(savedLD); } catch(_) { localDemands = []; }
+
+function toggleLocalDemandForm() { var f=document.getElementById('localDemandForm'); f.style.display=f.style.display==='none'?'':'none'; }
+
+function publishLocalDemand() {
+  var bname=document.getElementById('ldBusiness').value.trim();
+  var cat=document.getElementById('ldCategory').value;
+  var city=document.getElementById('ldCity').value.trim();
+  var dist=document.getElementById('ldDistrict').value.trim();
+  var title=document.getElementById('ldTitle').value.trim();
+  var desc=document.getElementById('ldDesc').value.trim();
+  var budget=document.getElementById('ldBudget').value.trim();
+  var reqs=document.getElementById('ldRequirements').value.trim();
+  var contact=document.getElementById('ldContact').value.trim();
+  var fb=document.getElementById('ldFeedback');
+  if(!bname||!city||!title||!desc){fb.textContent='商家名称、城市、标题和描述不能为空！';fb.style.color='var(--red)';return;}
+  localDemands.unshift({id:'ld'+Date.now(),businessName:bname,city:city,district:dist,category:cat,title:title,description:desc,budget:budget||'面议',requirements:reqs,contact:contact,postedBy:currentUser,postedAt:Date.now(),status:'open'});
+  localStorage.setItem('creatorhub_local_demands',JSON.stringify(localDemands));
+  track('local_demand_publish',{city:city,category:cat,budget:budget});
+  document.getElementById('ldBusiness').value='';document.getElementById('ldTitle').value='';document.getElementById('ldDesc').value='';document.getElementById('ldBudget').value='';document.getElementById('ldRequirements').value='';document.getElementById('ldContact').value='';document.getElementById('ldDistrict').value='';
+  toggleLocalDemandForm();fb.textContent='需求已发布！';fb.style.color='var(--sage)';
+  setTimeout(function(){fb.textContent='';},2000);
+  addXP(40,'发布本地需求');
+  renderLocalMatch();
+}
+
+function renderLocalMatch() {
+  var cityFilter=document.getElementById('localCityFilter')?document.getElementById('localCityFilter').value.trim():'';
+  var items=localDemands;
+  if(localFilter!=='all')items=items.filter(function(d){return d.category===localFilter;});
+  if(cityFilter)items=items.filter(function(d){return d.city.indexOf(cityFilter)!==-1;});
+  var catLabels={food:'🍔 餐饮',beauty:'💆 美容',fitness:'🏋 健身',entertainment:'🎬 娱乐',hotel:'🏨 酒店',retail:'🛒 零售',other:'📌 其他'};
+  var grid=document.getElementById('localDemandsGrid');
+  if(!items.length){grid.innerHTML='<p style="color:rgba(45,45,45,.4);padding:20px;text-align:center;">该筛选条件下暂无本地需求<br><small>试试切换城市或品类，或者发布第一条需求！</small></p>';}
+  else {grid.innerHTML=items.map(function(d,i){var isMine=d.postedBy===currentUser;return '<article class="card" style="--tilt:'+randTilt(i)+';--tape:'+randTape(i)+'"><div class="card-top"><span class="card-status seeking">'+(catLabels[d.category]||d.category)+'</span></div><h3>'+escapeHtml(d.businessName)+'</h3><p style="font-size:14px;color:rgba(45,45,45,.6);">📍 '+escapeHtml(d.city)+(d.district?'·'+escapeHtml(d.district):'')+'</p><p style="font-weight:600;">'+escapeHtml(d.title)+'</p><p class="desc">'+escapeHtml(d.description)+'</p><div class="budget">'+escapeHtml(d.budget)+'</div><p style="font-size:13px;color:rgba(45,45,45,.5);">要求：'+escapeHtml(d.requirements||'无特殊要求')+'</p><div class="card-foot"><button class="btn" onclick="localMatchIntent(\''+d.id+'\')">🤝 我要接</button>'+'<span style="font-size:13px;color:rgba(45,45,45,.4);margin-left:8px;">'+escapeHtml(d.contact)+'</span>'+(isMine?'<button class="mini-btn reject" onclick="event.stopPropagation();deleteLocalDemand(\''+d.id+'\')" title="删除">🗑</button>':'')+'</div></article>';}).join('');}
+
+  // Local creators recommendations
+  var creators=allUsers.filter(function(u){return u.role==='creator'&&(!cityFilter||(u.city&&u.city.indexOf(cityFilter)!==-1));}).slice(0,6);
+  var cgrid=document.getElementById('localCreatorsGrid');
+  if(!creators.length){cgrid.innerHTML='<p style="color:rgba(45,45,45,.4);">暂无该城市的达人数据</p>';}
+  else {cgrid.innerHTML=creators.map(function(u,i){var lvl=Math.min(10,Math.floor((userXP[u.id]||0)/500)+1);return '<div class="card" style="--tilt:'+randTilt(i)+';--tape:'+randTape(i)+';text-align:center;"><div class="avatar" style="background:'+(u.avatarBg||'var(--avatar)')+';width:48px;height:48px;margin:0 auto 8px;">'+u.avatar+'</div><b>'+escapeHtml(u.name)+'</b><span class="tag" style="display:block;margin:4px auto;">Lv.'+lvl+'</span><p style="font-size:13px;color:rgba(45,45,45,.5);">📍 '+escapeHtml(u.city||'未知')+'</p><button class="btn" onclick="chatWithFriend(\''+u.id+'\')" style="margin-top:6px;">💬 邀约</button></div>';}).join('');}
+  track('local_match_view',{city:cityFilter||'all',category:localFilter});
+}
+
+function localMatchIntent(did) {
+  var d=localDemands.find(function(x){return x.id===did;});
+  if(!d)return;
+  deliverNotification(d.postedBy,'📍 本地合作意向：对「'+d.title+'」感兴趣，联系方式：'+d.contact,'本地对接-'+d.businessName);
+  showToast('已向 '+d.businessName+' 发送合作意向，对方将在聊天中收到通知 💌');
+  addXP(30,'本地对接意向');
+}
+
+document.getElementById('localFilters').addEventListener('click',function(e){
+  var btn=e.target.closest('.filter-btn');
+  if(!btn)return;
+  document.querySelectorAll('#localFilters .filter-btn').forEach(function(b){b.classList.remove('active');});
+  btn.classList.add('active');
+  localFilter=btn.dataset.lfilter;
+  renderLocalMatch();
+});
+
+function deleteLocalDemand(did) {
+  if (!confirm('确定删除这条本地需求吗？')) return;
+  var idx = localDemands.findIndex(function(x) { return x.id === did; });
+  if (idx >= 0) { localDemands.splice(idx, 1); localStorage.setItem('creatorhub_local_demands', JSON.stringify(localDemands)); renderLocalMatch(); showToast('已删除'); }
 }
 
 // ========================================
@@ -3099,7 +3523,7 @@ function createPost() {
     return;
   }
 
-  const catLabels = { exp: '经验分享', guide: '干货教程', qa: '求助问答', news: '行业动态' };
+  const catLabels = { exp: '经验分享', guide: '干货教程', qa: '求助问答', news: '行业动态', newbie: '🆕 新人报到', industry: '💬 行业讨论' };
   posts.unshift({
     id: 'p' + nextPostId++,
     title, category, categoryLabel: catLabels[category],
@@ -3111,6 +3535,7 @@ function createPost() {
 
   document.getElementById('postTitle').value = '';
   document.getElementById('postContent').value = '';
+  track('post_create',{category:category,length:content.length});
   addXP(50, '发布帖子');
   feedback.textContent = '发布成功！+50XP';
   feedback.style.color = 'var(--sage)';
@@ -3148,6 +3573,7 @@ document.getElementById('postFilters').addEventListener('click', e => {
   if (!btn) return;
   document.querySelectorAll('#postFilters .filter-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
+  track('community_filter',{filter_type:btn.dataset.filter});
   renderPosts(btn.dataset.filter);
 });
 
@@ -3336,6 +3762,7 @@ function renderFriendsList() {
 }
 
 function showFriendProfile(uid) {
+  track('profile_view',{target_user:uid,source:_currentTab});
   const user = allUsers.find(u => u.id === uid);
   if (!user) return;
 
@@ -3379,10 +3806,11 @@ function sendFriendRequest(uid) {
   if (friendRequests.some(r => r.from === uid)) { showToast('已经发送过好友请求了'); return; }
   const user = allUsers.find(u => u.id === uid);
   friendRequests.push({ from: uid, message: '想加你为好友，一起交流！', time: '刚刚' });
+  deliverNotification(uid,'👥 好友请求：想加你为好友，一起交流！','好友请求');
   updateFriendBadge();
   renderFriendsList();
   showFriendProfile(uid);
-  showToast(`已向 ${user.name} 发送好友请求`);
+  showToast(`已向 ${user.name} 发送好友请求，对方将在聊天中收到通知 💌`);
 }
 
 function acceptRequest(uid) {
@@ -3390,6 +3818,7 @@ function acceptRequest(uid) {
   const user = allUsers.find(u => u.id === uid);
   if (idx >= 0) friendRequests.splice(idx, 1);
   if (!myFriends.includes(uid)) myFriends.push(uid);
+  track('friend_add',{target_user:uid,source:_currentTab});
   // Also add to chat contacts if not already there
   if (!contacts.find(c => c.id === 'f_' + uid)) {
     contacts.push({
@@ -3448,8 +3877,9 @@ function quickAddFriend(name) {
     return;
   }
   friendRequests.push({ from: user.id, message: '想加你为好友，一起交流！', time: '刚刚' });
+  deliverNotification(user.id,'👥 好友请求：想加你为好友，一起交流！','好友请求');
   updateFriendBadge();
-  showToast(`已向 ${user.name} 发送好友请求`);
+  showToast(`已向 ${user.name} 发送好友请求，对方将在聊天中收到通知 💌`);
 }
 
 function chatWithFriend(uid) {
@@ -3490,6 +3920,7 @@ const myProfile = {
   bio: "跨平台创作者，分享创作和运营经验。喜欢探索新平台和新玩法。",
   platforms: ["xhs", "douyin", "bilibili"],
   tags: ["创作", "运营", "探店"],
+  city: "", workStatus: "",
   online: true
 };
 
@@ -3505,6 +3936,11 @@ function renderProfile() {
   document.getElementById('profileStatus').innerHTML = myProfile.online ? '● 在线' : '○ 离线';
   document.getElementById('profileStatus').style.color = myProfile.online ? 'var(--sage)' : 'rgba(45,45,45,.4)';
   document.getElementById('profileBio').textContent = myProfile.bio;
+  document.getElementById('profileCity').textContent = myProfile.city ? '📍 '+myProfile.city : '';
+  document.getElementById('profileCity').style.display = myProfile.city ? '' : 'none';
+  var wsLabels = {fulltime:'🟢 可全职',parttime:'🔵 可兼职',project:'🟠 可项目制',not_looking:'⚫ 暂不求职'};
+  document.getElementById('profileWorkStatus').textContent = myProfile.workStatus ? '💼 '+ (wsLabels[myProfile.workStatus]||myProfile.workStatus) : '';
+  document.getElementById('profileWorkStatus').style.display = myProfile.workStatus ? '' : 'none';
   document.getElementById('profilePlatforms').innerHTML = myProfile.platforms.map(platformTagHtml).join('');
 
   // Stats
@@ -3541,6 +3977,8 @@ function renderProfile() {
   document.getElementById('setName').value = myProfile.name;
   document.getElementById('setBio').value = myProfile.bio;
   document.getElementById('setRole').value = myProfile.role;
+  document.getElementById('setCity').value = myProfile.city || '';
+  document.getElementById('setWorkStatus').value = myProfile.workStatus || '';
 
   // Reset to home sub-view
   document.querySelectorAll('.profile-nav-btn').forEach(b => b.classList.remove('active'));
@@ -3553,8 +3991,10 @@ function saveProfile() {
   myProfile.name = document.getElementById('setName').value.trim() || myProfile.name;
   myProfile.bio = document.getElementById('setBio').value.trim() || myProfile.bio;
   myProfile.role = document.getElementById('setRole').value;
-  const roleMap = { creator: '创作者 / 达人', brand: '品牌方', merchant: '商家 / 供应链' };
+  const roleMap = { creator:'创作者 / 达人', brand:'品牌方', recruiter:'招聘方', freelancer:'自由职业者', student:'🎓 在校学生 / 应届毕业生', career_switcher:'🆕 想转行入行' };
   myProfile.roleLabel = roleMap[myProfile.role] || myProfile.roleLabel;
+  myProfile.city = document.getElementById('setCity').value.trim();
+  myProfile.workStatus = document.getElementById('setWorkStatus').value;
 
   // Get selected platforms
   const sel = document.getElementById('setPlatforms');
@@ -3580,6 +4020,8 @@ function saveProfile() {
     userDB[currentUser].name = myProfile.name;
     userDB[currentUser].role = myProfile.role;
     userDB[currentUser].roleLabel = myProfile.roleLabel;
+    userDB[currentUser].city = myProfile.city;
+    userDB[currentUser].workStatus = myProfile.workStatus;
     localStorage.setItem('creatorhub_users', JSON.stringify(userDB));
   }
   renderProfile();
@@ -3619,6 +4061,7 @@ const postComments = {}; // postId -> [{author, text, time}]
 
 function openPostDetail(postId) {
   currentPostId = postId;
+  track('post_view',{post_id:postId});
   var p = posts.find(function(x){ return x.id === postId; });
   if (!p) return;
   var cmts = postComments[p.id] || [];
@@ -3661,6 +4104,9 @@ function addComment() {
   if(!postComments[currentPostId])postComments[currentPostId]=[];
   postComments[currentPostId].push({author:myProfile.name,text:text,time:'刚刚'});
   var p=posts.find(function(x){return x.id===currentPostId;});if(p)p.comments++;
+  track('comment_create',{post_id:currentPostId,post_author:p?p.maker:''});
+  // Notify post author (if not self)
+  if(p&&p.maker&&p.maker!=='我'&&p.maker!==myProfile.name){deliverNotification(p.maker,'💬 评论了你的帖子：「'+text.slice(0,40)+(text.length>40?'...':'')+'」','社区评论');}
   addXP(10,'发表评论');
   input.value='';
   openPostDetail(currentPostId);
@@ -3670,6 +4116,7 @@ function addComment() {
 
 function deletePost(postId) {
   if (!confirm('确定要删除这条帖子吗？')) return;
+  track('post_delete',{post_id:postId});
   var idx = posts.findIndex(function(p){ return p.id === postId; });
   if (idx >= 0) {
     var p = posts[idx];
@@ -3679,6 +4126,65 @@ function deletePost(postId) {
     renderPosts();
     showToast('已删除：' + p.title);
   }
+}
+
+// ========================================
+// ONBOARDING
+// ========================================
+var _onboardingStep=1;var _onboardingData={followed:[],articlesRead:[]};
+var onboardingArticles=[
+  {title:'电商新人如何选择赛道？抖音vs小红书vs视频号',tag:'新人必读'},
+  {title:'短视频带货从0到1：新手入门完全指南',tag:'干货'},
+  {title:'本地探店达人入门：一部手机就能开始',tag:'本地'},
+  {title:'主播面试常见问题及注意事项',tag:'求职'},
+  {title:'新手接单报价参考：行业真实数据',tag:'报价'}
+];
+var onboardingMentors=[
+  {name:'小鹿',role:'美妆博主',desc:'小红书5.2K粉·3年创作经验'},
+  {name:'大刘',role:'探店达人',desc:'抖音1.2W粉·本地推广专家'},
+  {name:'阿Ken',role:'短视频编导',desc:'2年新媒体从业·帮品牌做过50+爆款'},
+  {name:'周姐',role:'服装店主',desc:'淘宝店主·小红书穿搭博主'},
+  {name:'王哥',role:'品牌市场经理',desc:'5年品牌投放经验·合作过200+达人'}
+];
+function showOnboarding(){_onboardingStep=1;_onboardingData={followed:[],articlesRead:[]};var el=document.getElementById('onboardingOverlay');if(el){el.classList.add('show');renderOnboardingStep();}}
+function skipOnboarding(){var el=document.getElementById('onboardingOverlay');if(el)el.classList.remove('show');_onboardingData={};}
+function nextOnboardingStep(){if(_onboardingStep<5){_onboardingStep++;renderOnboardingStep();}else{completeOnboarding();}}
+function renderOnboardingStep(){
+  var bar=document.getElementById('onboardingBar');bar.style.width=(_onboardingStep/5*100)+'%';
+  var content=document.getElementById('onboardingContent');
+  var nextBtn=document.getElementById('onboardingNextBtn');
+  if(_onboardingStep===1){
+    var role=myProfile.role;var welcome='👋 欢迎来到 CreatorHub！';
+    if(role==='student')welcome='🎓 欢迎！刚毕业不用怕，这里有人带你入行';
+    else if(role==='career_switcher')welcome='🆕 欢迎！转行不孤单，这里有人走过你正在走的路';
+    content.innerHTML='<div class="onboarding-content-step"><h3>'+welcome+'</h3><p>我们为你准备了专属的入门路径</p><p style="font-size:40px;">🚀</p></div>';
+    nextBtn.textContent='下一步 →';
+  }else if(_onboardingStep===2){
+    content.innerHTML='<div class="onboarding-content-step"><h3>📖 入门必读</h3><p>根据你的身份推荐以下文章</p><div class="ob-list">'+onboardingArticles.map(function(a,i){return '<div class="ob-item'+(i<3?' selected':'')+'" onclick="this.classList.toggle(\'selected\')">'+a.title+' <small>'+a.tag+'</small></div>';}).join('')+'</div></div>';
+    nextBtn.textContent='下一步 →';
+  }else if(_onboardingStep===3){
+    content.innerHTML='<div class="onboarding-content-step"><h3>👥 推荐关注</h3><p>这些行业前辈值得认识</p><div class="ob-list">'+onboardingMentors.map(function(m,i){return '<div class="ob-item'+(i<3?' selected':'')+'" onclick="this.classList.toggle(\'selected\')"><b>'+m.name+'</b> · '+m.role+'<br><small>'+m.desc+'</small></div>';}).join('')+'</div></div>';
+    nextBtn.textContent='下一步 →';
+  }else if(_onboardingStep===4){
+    content.innerHTML='<div class="onboarding-content-step"><h3>💬 加入讨论</h3><p>热门话题等你参与</p><div class="ob-list"><div class="ob-item selected"><b>#新人报道</b><br><small>介绍一下你自己，让大家认识你</small></div><div class="ob-item"><b>#入行经验</b><br><small>过来人的经验分享</small></div><div class="ob-item"><b>#避坑指南</b><br><small>新人最容易踩的坑</small></div></div></div>';
+    nextBtn.textContent='开始探索 🎉';
+  }else if(_onboardingStep===5){
+    completeOnboarding();
+  }
+  track('user_onboarding_view',{user_role:myProfile.role,step:_onboardingStep,completed:false});
+}
+function completeOnboarding(){
+  var selectedArticles=document.querySelectorAll('#onboardingContent .ob-item.selected');
+  _onboardingData.articlesRead=Array.from(selectedArticles).map(function(el){return el.textContent.trim().split(' ')[0];});
+  _onboardingData.followed=selectedArticles.length;
+  var obEl=document.getElementById('onboardingOverlay');if(obEl)obEl.classList.remove('show');
+  addXP(100,'完成新手引导');
+  track('user_onboarding_complete',{followed_count:_onboardingData.followed,articles_read:_onboardingData.articlesRead.length});
+  // Save completion status
+  var ob=JSON.parse(localStorage.getItem('creatorhub_onboarding')||'{}');
+  ob[currentUser]={completed:true,completedAt:Date.now()};
+  localStorage.setItem('creatorhub_onboarding',JSON.stringify(ob));
+  showToast('🎉 欢迎入圈！+100XP');
 }
 
 // ========================================
