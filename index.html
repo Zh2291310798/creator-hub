@@ -1464,6 +1464,7 @@ input, textarea, select { font: inherit; }
 }
 
 </style>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 </head>
 <body>
 <!-- ========================================
@@ -1492,7 +1493,7 @@ input, textarea, select { font: inherit; }
     <!-- Login form -->
     <div id="loginForm">
       <h3>🔑 登录</h3>
-      <div class="form-row"><label>用户名</label><input type="text" id="loginUser" placeholder="输入用户名" /></div>
+      <div class="form-row"><label>邮箱</label><input type="text" id="loginUser" placeholder="输入注册邮箱" /></div>
       <div class="form-row"><label>密码</label><input type="password" id="loginPass" placeholder="输入密码" /></div>
       <button class="btn big" onclick="doLogin()" style="width:100%;">登录</button>
       <p style="text-align:center;margin-top:14px;font-size:15px;">
@@ -1504,6 +1505,7 @@ input, textarea, select { font: inherit; }
     <!-- Register form (hidden) -->
     <div id="registerForm" style="display:none;">
       <h3>📝 注册新账号</h3>
+      <div class="form-row"><label>邮箱</label><input type="email" id="regEmail" placeholder="用于登录和找回密码" /></div>
       <div class="form-row"><label>用户名</label><input type="text" id="regUser" placeholder="给自己起个名字" /></div>
       <div class="form-row"><label>密码</label><input type="password" id="regPass" placeholder="至少6位" /></div>
       <div class="form-row"><label>确认密码</label><input type="password" id="regPass2" placeholder="再输一遍" /></div>
@@ -2142,136 +2144,192 @@ var AB={
   reset:function(experimentId){localStorage.removeItem('ab_'+experimentId);}
 };
 // ========================================
+// ========================================
+// SUPABASE BACKEND
+// ========================================
+const SB_URL='https://bbjdrjbqkhtcqvduqmpj.supabase.co';
+const SB_KEY='sb_publishable_KwoaGM3yrgCWUolbwfCHVg_Qk41OFsv';
+const sb=supabase.createClient(SB_URL,SB_KEY);
+
+// ========================================
 // AUTH
 // ========================================
-var currentUser = null;
-var userDB = {};
+var currentUser=null;
 
-// Load from localStorage
-try {
-  var saved = localStorage.getItem('creatorhub_users');
-  if (saved) userDB = JSON.parse(saved);
-} catch(e) { userDB = {}; }
-try {
-  var sess = localStorage.getItem('creatorhub_session');
-  if (sess && userDB[sess]) {
-    currentUser = sess;
-    myProfile.name = userDB[sess].name;
-    myProfile.role = userDB[sess].role;
-    myProfile.roleLabel = userDB[sess].roleLabel;
-    myProfile.avatar = userDB[sess].name.slice(0,1);
-    if (userDB[sess].avatarChoice) myAvatarChoice = userDB[sess].avatarChoice;
+// Supabase session -> local state
+async function loadSession(user){
+  currentUser=user.user_metadata.username||user.email.split('@')[0];
+  var _a=await sb.from('profiles').select('*').eq('id',user.id).single();
+  var p=_a.data;
+  if(p){
+    myProfile.name=p.username;
+    myProfile.role=p.role;
+    myProfile.roleLabel=p.role_label;
+    myProfile.avatar=p.username.slice(0,1);
+    myProfile.city=p.city||'';
+    myProfile.workStatus=p.work_status||'';
+    if(p.avatar_choice)myAvatarChoice=p.avatar_choice;
+    myLevel=p.level||1;myXP=p.xp||0;
   }
-} catch(e) { currentUser = null; }
-
-function initAuth() {
-  if (currentUser) {
-    // Daily login XP (once per day)
-    var today = new Date().toDateString();
-    var lastLogin = localStorage.getItem('creatorhub_lastLogin');
-    if (lastLogin !== today) {
-      localStorage.setItem('creatorhub_lastLogin', today);
-      if (!userXP[currentUser]) userXP[currentUser] = 0;
-      userXP[currentUser] += 25;
-    }
-    // Already logged in
-    document.getElementById('authOverlay').style.display = 'none';
-    document.getElementById('mainApp').style.display = '';
-    var ua = document.getElementById('topAvatar');
-    if (ua) { ua.textContent = myProfile.avatar; ua.style.background = avatarGradient(myProfile.name); ua.style.color = '#fff'; }
-    document.querySelector('.user-mini span:last-child').textContent = myProfile.name + ' ⚙';
-    document.getElementById('setName').value = myProfile.name;
-    document.getElementById('setRole').value = myProfile.role;
-    renderProfile();
-    updateLevelDisplay();
-    updateMyAvatar();
-    // Onboarding check for auto-login users
-    var role=myProfile.role;
-    var obData=JSON.parse(localStorage.getItem('creatorhub_onboarding')||'{}');
-    if((role==='student'||role==='career_switcher')&&!obData[currentUser]){setTimeout(function(){showOnboarding();},500);}
-    setTimeout(function(){checkNotifications();},600);
-    setTimeout(function(){updateNotifyBadge();},700);
-  }
-}
-
-function doLogin() {
-  var user = document.getElementById('loginUser').value.trim();
-  var pass = document.getElementById('loginPass').value.trim();
-  var err = document.getElementById('loginError');
-  err.textContent = '';
-  if (!user || !pass) { err.textContent = '请填写用户名和密码'; return; }
-  if (!userDB[user]) { err.textContent = '用户不存在，请先注册'; return; }
-  if (userDB[user].password !== pass) { err.textContent = '密码错误'; return; }
-  currentUser = user;
-  myProfile.name = userDB[user].name;
-  myProfile.role = userDB[user].role;
-  myProfile.roleLabel = userDB[user].roleLabel;
-  myProfile.avatar = user.slice(0,1);
-  localStorage.setItem('creatorhub_session', user);
+  var _x=await sb.from('xp_records').select('amount').eq('username',currentUser);
+  if(_x.data){myXP=0;_x.data.forEach(function(r){myXP+=r.amount;});myLevel=Math.floor(myXP/100)+1;}
+  var _o=await sb.from('onboarding_status').select('*').eq('username',currentUser).maybeSingle();
+  if(_o.data&&_o.data.completed)localStorage.setItem('creatorhub_onboarding_'+currentUser,'done');
+  var today=new Date().toDateString();
+  var lastLogin=localStorage.getItem('creatorhub_lastLogin');
+  if(lastLogin!==today){localStorage.setItem('creatorhub_lastLogin',today);await sb.from('xp_records').insert({username:currentUser,amount:25,reason:'每日登录'});myXP+=25;myLevel=Math.floor(myXP/100)+1;await sb.from('profiles').update({xp:myXP,level:myLevel}).eq('id',user.id);}
+  document.getElementById('authOverlay').style.display='none';
+  document.getElementById('mainApp').style.display='';
+  var ua2=document.getElementById('topAvatar');
+  if(ua2){ua2.textContent=myProfile.avatar;ua2.style.background=avatarGradient(myProfile.name);ua2.style.color='#fff';}
+  document.querySelector('.user-mini .avatar').textContent=myProfile.avatar;
+  document.querySelector('.user-mini span:last-child').textContent=myProfile.name+' ⚙';
+  document.getElementById('setName').value=myProfile.name;
+  document.getElementById('setRole').value=myProfile.role;
   track('user_login',{is_new:false});
-  document.getElementById('authOverlay').style.display = 'none';
-  document.getElementById('mainApp').style.display = '';
-  document.querySelector('.user-mini .avatar').textContent = myProfile.avatar;
-  document.querySelector('.user-mini span:last-child').textContent = myProfile.name + ' ⚙';
-  document.getElementById('setName').value = myProfile.name;
-  document.getElementById('setRole').value = myProfile.role;
-  var ua2 = document.getElementById('topAvatar');
-  if (ua2) { ua2.textContent = myProfile.avatar; ua2.style.background = avatarGradient(myProfile.name); ua2.style.color = '#fff'; }
-  renderProfile();
-  updateLevelDisplay();
-  init();
-  // Check onboarding for new student/career_switcher users
+  renderProfile();updateLevelDisplay();updateMyAvatar();
   var role=myProfile.role;
-  var obData=JSON.parse(localStorage.getItem('creatorhub_onboarding')||'{}');
-  if((role==='student'||role==='career_switcher')&&!obData[currentUser]){setTimeout(function(){showOnboarding();},500);}
+  if((role==='student'||role==='career_switcher')&&!localStorage.getItem('creatorhub_onboarding_'+currentUser)){setTimeout(function(){showOnboarding();},500);}
   setTimeout(function(){checkNotifications();},600);
   setTimeout(function(){updateNotifyBadge();},700);
-  showToast('欢迎回来，' + myProfile.name + '！👋');
+  showToast('欢迎回来，'+myProfile.name+'！👋');
 }
 
-function doRegister() {
-  var user = document.getElementById('regUser').value.trim();
-  var pass = document.getElementById('regPass').value.trim();
-  var pass2 = document.getElementById('regPass2').value.trim();
-  var role = document.getElementById('regRole').value;
-  var err = document.getElementById('regError');
-  err.textContent = '';
-  if (!user || !pass) { err.textContent = '请填写用户名和密码'; return; }
-  if (user.length < 2) { err.textContent = '用户名至少2个字符'; return; }
-  if (pass.length < 6) { err.textContent = '密码至少6位'; return; }
-  if (pass !== pass2) { err.textContent = '两次密码不一致'; return; }
-  if (userDB[user]) { err.textContent = '用户名已被注册'; return; }
-  var roleMap = { creator:'创作者 / 达人', brand:'品牌方', recruiter:'招聘方', freelancer:'自由职业者', student:'🎓 在校学生 / 应届毕业生', career_switcher:'🆕 想转行入行' };
-  userDB[user] = { name:user, password:pass, role:role, roleLabel:roleMap[role] };
-  localStorage.setItem('creatorhub_users', JSON.stringify(userDB));
+async function initAuth(){
+  var _s=await sb.auth.getSession();
+  if(_s.data.session&&_s.data.session.user){
+    await loadSession(_s.data.session.user);
+    init();
+  }
+}
+
+sb.auth.onAuthStateChange(function(event,session){
+  if(event==='SIGNED_IN'&&session&&!currentUser){loadSession(session.user).then(function(){init();});}
+});
+
+async function doLogin(){
+  var email=document.getElementById('loginUser').value.trim();
+  var pass=document.getElementById('loginPass').value.trim();
+  var err=document.getElementById('loginError');
+  err.textContent='';
+  if(!email||!pass){err.textContent='请输入邮箱和密码';return;}
+  var _r=await sb.auth.signInWithPassword({email:email,password:pass});
+  if(_r.error){err.textContent=_r.error.message==='Invalid login credentials'?'邮箱或密码错误':_r.error.message;return;}
+  if(_r.data.user){await loadSession(_r.data.user);init();}
+}
+
+async function doRegister(){
+  var email=document.getElementById('regEmail').value.trim();
+  var user=document.getElementById('regUser').value.trim();
+  var pass=document.getElementById('regPass').value.trim();
+  var pass2=document.getElementById('regPass2').value.trim();
+  var role=document.getElementById('regRole').value;
+  var err=document.getElementById('regError');
+  err.textContent='';err.style.color='var(--red)';
+  if(!email||!user||!pass){err.textContent='请填写所有字段';return;}
+  if(user.length<2){err.textContent='用户名至少2个字符';return;}
+  if(pass.length<6){err.textContent='密码至少6位';return;}
+  if(pass!==pass2){err.textContent='两次密码不一致';return;}
+  var roleMap={creator:'创作者 / 达人',brand:'品牌方',recruiter:'招聘方',freelancer:'自由职业者',student:'🎓 在校学生 / 应届毕业生',career_switcher:'🆕 想转行入行'};
+  var _r=await sb.auth.signUp({email:email,password:pass,options:{data:{username:user,role:role,role_label:roleMap[role]}}});
+  if(_r.error){err.textContent=_r.error.message==='User already registered'?'该邮箱已被注册':_r.error.message;return;}
   track('user_register',{role:role});
-  showRegister(); // switch back to login
-  showToast('注册成功！请登录');
-  document.getElementById('loginUser').value = user;
-  document.getElementById('loginPass').value = '';
-  var err2 = document.getElementById('loginError');
-  err2.textContent = '注册成功，请登录';
-  err2.style.color = 'var(--sage)';
+  if(_r.data.user&&_r.data.session){await loadSession(_r.data.user);init();showToast('注册成功！欢迎加入 CreatorHub 🎉');}
+  else{showLogin();showToast('注册成功！请登录');document.getElementById('loginUser').value=email;document.getElementById('loginPass').value='';var err2=document.getElementById('loginError');err2.textContent='注册成功，请登录';err2.style.color='var(--sage)';}
 }
 
-function showRegister() {
-  document.getElementById('loginForm').style.display = 'none';
-  document.getElementById('registerForm').style.display = '';
-  document.getElementById('loginError').textContent = '';
+function showRegister(){
+  document.getElementById('loginForm').style.display='none';
+  document.getElementById('registerForm').style.display='';
+  document.getElementById('loginError').textContent='';
 }
-function showLogin() {
-  document.getElementById('loginForm').style.display = '';
-  document.getElementById('registerForm').style.display = 'none';
-  document.getElementById('regError').textContent = '';
+function showLogin(){
+  document.getElementById('loginForm').style.display='';
+  document.getElementById('registerForm').style.display='none';
+  document.getElementById('regError').textContent='';
 }
 
-// Logout
-function doLogout() {
-  localStorage.removeItem('creatorhub_session');
-  currentUser = null;
+async function doLogout(){
+  await sb.auth.signOut();
+  currentUser=null;
   location.reload();
 }
 
+// ========================================
+// DATA LAYER
+// ========================================
+
+async function loadNotifications(){
+  if(!currentUser)return[];
+  var _n=await sb.from('notifications').select('*').eq('username',currentUser).order('created_at',{ascending:false}).limit(50);
+  return _n.data||[];
+}
+
+async function saveXP(amount,reason){
+  if(!currentUser)return;
+  await sb.from('xp_records').insert({username:currentUser,amount:amount,reason:reason});
+  myXP+=amount;myLevel=Math.floor(myXP/100)+1;
+  var _p=await sb.from('profiles').select('id').eq('username',currentUser).single();
+  if(_p.data)await sb.from('profiles').update({xp:myXP,level:myLevel}).eq('id',_p.data.id);
+  updateLevelDisplay();
+}
+
+function setupRealtime(){
+  if(!currentUser)return;
+  sb.channel('chat-'+currentUser)
+    .on('postgres_changes',{event:'INSERT',schema:'public',table:'chat_messages',filter:'recipient=eq.'+currentUser},
+      function(p){renderChatMessages();updateChatBadge();checkNotifications();})
+    .subscribe();
+  sb.channel('world-chat')
+    .on('postgres_changes',{event:'INSERT',schema:'public',table:'world_messages'},
+      function(p){renderWorldChat();})
+    .subscribe();
+  sb.channel('notif-'+currentUser)
+    .on('postgres_changes',{event:'INSERT',schema:'public',table:'notifications',filter:'username=eq.'+currentUser},
+      function(p){updateNotifyBadge();})
+    .subscribe();
+  sb.channel('posts-live')
+    .on('postgres_changes',{event:'INSERT',schema:'public',table:'posts'},
+      function(p){if(p.new){posts.unshift(p.new);renderPosts(currentTab);}})
+    .subscribe();
+}
+
+// ========================================
+
+// ========================================
+// LOAD ALL DATA FROM SUPABASE
+// ========================================
+async function loadAllData(){
+  if(!currentUser)return;
+  // Load posts
+  var rp=await sb.from("posts").select("*").order("created_at",{ascending:false}).limit(100);
+  if(rp.data&&rp.data.length>0){rp.data.forEach(function(p){if(!posts.find(function(x){return x.id===p.id;}))posts.unshift(p);});renderPosts("all");}
+  // Load recruits
+  var rr=await sb.from("recruits").select("*").order("created_at",{ascending:false}).limit(50);
+  if(rr.data&&rr.data.length>0){rr.data.forEach(function(r){if(!recruits.find(function(x){return x.id===r.id;}))recruits.unshift(r);});}
+  // Load local demands
+  var rl=await sb.from("local_demands").select("*").order("created_at",{ascending:false}).limit(50);
+  if(rl.data&&rl.data.length>0){localStorage.setItem("creatorhub_local_demands",JSON.stringify(rl.data));}
+  // Load friends
+  var rf=await sb.from("friends").select("friend_name").eq("username",currentUser);
+  if(rf.data&&rf.data.length>0){myFriends=rf.data.map(function(f){return f.friend_name;});localStorage.setItem("creatorhub_friends_"+currentUser,JSON.stringify(myFriends));}
+  // Load chat history
+  var rc=await sb.from("chat_messages").select("*").or("sender.eq."+currentUser+",recipient.eq."+currentUser).order("created_at",{ascending:true}).limit(200);
+  if(rc.data&&rc.data.length>0){
+    rc.data.forEach(function(m){
+      var other=m.sender===currentUser?m.recipient:m.sender;
+      var cid="c_"+[currentUser,other].sort().join("_");
+      var existing=contacts.find(function(c){return c.id===cid;});
+      if(!existing){contacts.push({id:cid,name:other,avatar:other.slice(0,1),avatarBg:"",platform:"all",unread:0,lastMsg:"",messages:[]});existing=contacts[contacts.length-1];}
+      existing.messages.push({from:m.sender===currentUser?"me":"them",text:m.content,time:new Date(m.created_at).toLocaleTimeString("zh-CN",{hour:"2-digit",minute:"2-digit"})});
+      existing.lastMsg=m.content.slice(0,30);
+      if(m.sender!==currentUser&&!m.is_read)existing.unread=(existing.unread||0)+1;
+    });
+    renderChatContacts();
+  }
+  setupRealtime();
+}
+// AVATAR SYSTEM
 // ========================================
 // AVATAR SYSTEM
 // ========================================
@@ -2354,7 +2412,7 @@ function renderAvatarPicker() {
 function saveAvatarChoice() {
   if (currentUser) {
     userDB[currentUser].avatarChoice = myAvatarChoice;
-    localStorage.setItem('creatorhub_users', JSON.stringify(userDB));
+    sb.from("profiles").update({username:myProfile.name,role:myProfile.role,role_label:myProfile.roleLabel,city:myProfile.city,work_status:myProfile.workStatus,bio:myProfile.bio}).eq("username",currentUser).then(function(){});
   }
 }
 
@@ -2393,19 +2451,7 @@ function xpProgress(xp) {
   return Math.floor(((xp - base) / (next - base)) * 100);
 }
 
-function addXP(amount, reason) {
-  if (!currentUser) return;
-  if (!userXP[currentUser]) userXP[currentUser] = 0;
-  userXP[currentUser] += amount;
-  localStorage.setItem('creatorhub_xp', JSON.stringify(userXP));
-  var oldLv = getLevel(userXP[currentUser] - amount);
-  var newLv = getLevel(userXP[currentUser]);
-  if (newLv > oldLv) {
-    showToast('🎉 升级了！Lv.' + newLv + ' 「' + getLevelTitle(newLv) + '」');
-    burstSparks(window.innerWidth/2, window.innerHeight/2, '🎉');
-  }
-  updateLevelDisplay();
-}
+async function addXP(amount, reason) { if(!currentUser)return; var oldLv=myLevel; saveXP(amount,reason).then(function(){if(myLevel>oldLv){showToast("🎉 升级了！Lv."+myLevel+" 「"+getLevelTitle(myLevel)+"」");burstSparks(window.innerWidth/2,window.innerHeight/2,"🎉");}updateLevelDisplay();}); }
 
 function getLevelTitle(lv) {
   var titles = ['','萌新','学徒','探路者','创作者','达人','专家','大师','传奇','巨星','创世神'];
@@ -2414,7 +2460,7 @@ function getLevelTitle(lv) {
 
 function updateLevelDisplay() {
   if (!currentUser) return;
-  var xp = userXP[currentUser] || 0;
+  var xp = myXP || 0;
   var lv = getLevel(xp);
   var prog = xpProgress(xp);
   var bar = document.getElementById('levelBar');
@@ -2997,7 +3043,7 @@ function sendWorldMessage() {
   if (!text) return;
   var now = new Date();
   var time = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
-  worldChat.push({ from:myProfile.name, text:text, time:time });
+  worldChat.push({ from:myProfile.name, text:text, time:time });sb.from("world_messages").insert({sender:myProfile.name,sender_avatar:myProfile.avatar,content:text}).then(function(){});
   input.value = '';
   track('chat_message_send',{chat_type:'world'});
   renderWorldChat();
@@ -3072,43 +3118,13 @@ function deliverNotification(targetName, msgText, source) {
     if(!notifs[targetName])notifs[targetName]=[];
     notifs[targetName].push({from:myProfile.name,text:msgText,source:source,time:Date.now(),read:false});
     localStorage.setItem('creatorhub_notifications',JSON.stringify(notifs));
+sb.from("notifications").insert({username:targetName,type:source||"系统",content:msgText,from_user:myProfile.name,link:""}).then(function(){});
   }catch(_){}
   renderChatContacts();
 }
 
 // Check unread notifications for current user on login
-function checkNotifications() {
-  try{
-    var notifs=JSON.parse(localStorage.getItem('creatorhub_notifications')||'{}');
-    var mine=notifs[myProfile.name]||[];
-    var unread=mine.filter(function(n){return !n.read;});
-    var emojiMap={对接:'🤝',本地:'📍',招募:'💼',评论:'💬',好友:'👥'};
-    if(unread.length>0){
-      unread.forEach(function(n){
-        var cid='f_'+n.from;
-        var existing=contacts.find(function(c){return c.id===cid||c.name===n.from;});
-        var t=new Date(n.time);var time=String(t.getHours()).padStart(2,'0')+':'+String(t.getMinutes()).padStart(2,'0');
-        if(existing){
-          existing.messages.push({from:'them',text:n.text,time:time});
-          existing.lastMsg=n.from+'：'+n.text.slice(0,30);
-          existing.unread=(existing.unread||0)+1;
-        }else{
-          contacts.push({id:cid,name:n.from,avatar:n.from.slice(0,1),avatarBg:avatarGradient(n.from),platform:'all',unread:1,lastMsg:n.from+'：'+n.text.slice(0,30),messages:[{from:'them',text:n.text,time:time}]});
-        }
-        var src=n.source||'';var em='💬';var act='chat:'+n.from;
-        for(var k in emojiMap){if(src.indexOf(k)>=0){em=emojiMap[k];act=k==='好友'?'friends':k==='招募'?'recruit':k==='对接'?'match':k==='本地'?'local':'community';break;}}
-        saveNotify(em,n.from+' → 你',(n.text||'').slice(0,60),act);
-      });
-      mine.forEach(function(n){n.read=true;});
-      notifs[myProfile.name]=mine;
-      localStorage.setItem('creatorhub_notifications',JSON.stringify(notifs));
-      updateChatBadge();
-      renderChatContacts();
-    }
-    // Always update badge even if no new unread — existing list may have entries
-    updateNotifyBadge();
-  }catch(_){}
-}
+function checkNotifications(){ if(currentUser){ loadNotifications().then(function(list){ if(list.length>0){ var lastSeen=localStorage.getItem('creatorhub_notify_last_seen')||''; list.forEach(function(n){ if(n.created_at>lastSeen){ saveNotify(n.type,n.content,false); } }); } updateNotifyBadge(); }); } }
 
 // Notification center — parallel to chat notifications, for the bell dropdown
 function saveNotify(emoji, title, body, action) {
@@ -3116,6 +3132,7 @@ function saveNotify(emoji, title, body, action) {
   list.unshift({ emoji: emoji, title: title, body: body, action: action, time: Date.now(), read: false });
   if (list.length > 100) list.splice(100);
   localStorage.setItem('creatorhub_notify_list', JSON.stringify(list));
+if(currentUser){sb.from("notifications").insert({username:currentUser,type:action||"系统",content:body,from_user:title||"",link:action||""}).then(function(){});}
   updateNotifyBadge();
 }
 function updateNotifyBadge() {
@@ -3166,7 +3183,7 @@ function sendMessage() {
   const now = new Date();
   const time = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
 
-  activeContact.messages.push({ from: 'me', text, time });
+  activeContact.messages.push({ from: 'me', text, time });sb.from("chat_messages").insert({sender:myProfile.name,recipient:activeContact.name||activeContact.id,content:text}).then(function(){});
   activeContact.lastMsg = text;
   input.value = '';
   track('chat_message_send',{chat_type:'private',target_user:activeContact.name||activeContact.id});
@@ -3319,7 +3336,8 @@ function publishRecruit() {
   var fb = document.getElementById('rfFeedback');
   if (!title || !company || !desc) { fb.textContent = '标题、公司和描述不能为空！'; fb.style.color = 'var(--red)'; return; }
   var modeLabels = { fulltime: '全职', parttime: '兼职', project: '项目制', intern: '实习' };
-  recruits.unshift({
+  sb.from("recruits").insert({id:"r"+Date.now(),title:title,poster:company,poster_avatar:company.slice(0,1),type:type,mode:modeLabels[mode]||mode,description:desc,detail:desc,budget:budget||"面议",city:city,platforms:platforms,tags:[],status:"招募中",status_class:"active-recruit"}).then(function(){});
+recruits.unshift({
     id: 'r' + Date.now(),
     title: title,
     poster: company,
@@ -3524,6 +3542,8 @@ function createPost() {
   }
 
   const catLabels = { exp: '经验分享', guide: '干货教程', qa: '求助问答', news: '行业动态', newbie: '🆕 新人报到', industry: '💬 行业讨论' };
+  sb.from("posts").insert({id:"p"+(nextPostId),author:myProfile.name,author_avatar:myProfile.avatar,title:title,category:category,category_label:catLabels[category],content:content,platform:platform||"all"}).then(function(){});
+
   posts.unshift({
     id: 'p' + nextPostId++,
     title, category, categoryLabel: catLabels[category],
@@ -3948,7 +3968,7 @@ function renderProfile() {
   document.getElementById('profilePosts').textContent = myPostCount;
   document.getElementById('profileFriends').textContent = myFriends.length;
   document.getElementById('profileFollowing').textContent = '1,284';
-  var xp = (currentUser && userXP[currentUser]) ? userXP[currentUser] : 0;
+  var xp = (currentUser && myXP) ? myXP : 0;
   document.getElementById('profileFollowers').textContent = xp + 'XP';
 
   // My posts
@@ -4173,7 +4193,7 @@ function renderOnboardingStep(){
   }
   track('user_onboarding_view',{user_role:myProfile.role,step:_onboardingStep,completed:false});
 }
-function completeOnboarding(){
+function completeOnboarding(){sb.from("onboarding_status").upsert({username:myProfile.name,step:5,followed_users:_onboardingData.followed,articles_read:_onboardingData.articlesRead,completed:true}).then(function(){});
   var selectedArticles=document.querySelectorAll('#onboardingContent .ob-item.selected');
   _onboardingData.articlesRead=Array.from(selectedArticles).map(function(el){return el.textContent.trim().split(' ')[0];});
   _onboardingData.followed=selectedArticles.length;
@@ -4183,7 +4203,8 @@ function completeOnboarding(){
   // Save completion status
   var ob=JSON.parse(localStorage.getItem('creatorhub_onboarding')||'{}');
   ob[currentUser]={completed:true,completedAt:Date.now()};
-  localStorage.setItem('creatorhub_onboarding',JSON.stringify(ob));
+  sb.from("onboarding_status").upsert({username:myProfile.name,step:step,followed_users:data.followed,articles_read:data.articlesRead,completed:step>=5}).then(function(){});
+localStorage.setItem('creatorhub_onboarding',JSON.stringify(ob));
   showToast('🎉 欢迎入圈！+100XP');
 }
 
@@ -4203,7 +4224,7 @@ function init() {
   updateFriendBadge();
 }
 
-initAuth();
+initAuth().then(function(){loadAllData();});
 </script>
 
 <div class="emoji-picker" id="emojiPicker" style="display:none;"></div>
