@@ -2288,11 +2288,11 @@ function setupRealtime(){
     .subscribe();
   sb.channel('notif-'+currentUser)
     .on('postgres_changes',{event:'INSERT',schema:'public',table:'notifications',filter:'username=eq.'+currentUser},
-      function(p){updateNotifyBadge();})
+      function(p){if(p.new){saveNotify(p.new.type,p.new.content,false);}updateNotifyBadge();})
     .subscribe();
   sb.channel('posts-live')
     .on('postgres_changes',{event:'INSERT',schema:'public',table:'posts'},
-      function(p){if(p.new){posts.unshift(p.new);renderPosts(currentTab);}})
+      function(p){if(p.new){posts.unshift({id:p.new.id,title:p.new.title,category:p.new.category,categoryLabel:p.new.category_label||'其他',maker:p.new.author,avatar:p.new.author_avatar,time:'刚刚',desc:p.new.content,platform:p.new.platform||'all',likes:p.new.likes||0,comments:p.new.comment_count||0});renderPosts('all');}})
     .subscribe();
 }
 
@@ -3134,7 +3134,6 @@ function saveNotify(emoji, title, body, action) {
   list.unshift({ emoji: emoji, title: title, body: body, action: action, time: Date.now(), read: false });
   if (list.length > 100) list.splice(100);
   localStorage.setItem('creatorhub_notify_list', JSON.stringify(list));
-if(currentUser){sb.from("notifications").insert({username:currentUser,type:action||"系统",content:body,from_user:title||"",link:action||""}).then(function(){});}
   updateNotifyBadge();
 }
 function updateNotifyBadge() {
