@@ -2233,6 +2233,8 @@ async function doRegister(){
   var roleMap={creator:'创作者 / 达人',brand:'品牌方',recruiter:'招聘方',freelancer:'自由职业者',student:'🎓 在校学生 / 应届毕业生',career_switcher:'🆕 想转行入行'};
   var _r=await sb.auth.signUp({email:email,password:pass,options:{data:{username:user,role:role,role_label:roleMap[role]}}});
   if(_r.error){err.textContent=_r.error.message==='User already registered'?'该邮箱已被注册':_r.error.message;return;}
+  // Manually create profile (bypass trigger)
+  if(_r.data.user){sb.from('profiles').insert({id:_r.data.user.id,email:email,username:user,role:role,role_label:roleMap[role],avatar_text:user}).then(function(){}).catch(function(){});}
   track('user_register',{role:role});
   if(_r.data.user&&_r.data.session){await loadSession(_r.data.user);init();showToast('注册成功！欢迎加入 CreatorHub 🎉');}
   else{showLogin();showToast('注册成功！请登录');document.getElementById('loginUser').value=email;document.getElementById('loginPass').value='';var err2=document.getElementById('loginError');err2.textContent='注册成功，请登录';err2.style.color='var(--sage)';}
