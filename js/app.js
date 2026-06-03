@@ -262,6 +262,9 @@ async function loadAllData(){
     // Load local demands
     var rl=await sb.from("local_demands").select("*").order("created_at",{ascending:false}).limit(50);
     if(rl.data&&rl.data.length>0){localStorage.setItem("creatorhub_local_demands",JSON.stringify(rl.data));}
+    // Load v2 match demands with deal state
+    var rm=await sb.from("match_demands").select("*").order("created_at",{ascending:false}).limit(100);
+    if(rm.data&&rm.data.length>0){rm.data.forEach(function(d){var isBrand=d.role==='品牌方'||d.role==='brand';var arr=isBrand?brandSeekingData:creatorSeekingData;if(arr.find(function(x){return x.id===d.id;}))return;var item={id:d.id,title:(d.description||'对接需求').split(' · ')[0],budget:d.budget||'面议',desc:d.description||'',detail:d.description||'',platforms:safeArray(d.platforms),tags:['对接'],deal_status:d.deal_status||'open',deal_partner:d.deal_partner||''};if(isBrand){item.brand=d.poster;item.avatar=(d.poster||'品').slice(0,1);item.avatarBg='';}else{item.creator=d.poster;item.avatar=(d.poster||'达').slice(0,1);item.avatarBg='';}arr.unshift(item);});}
     // Load friends
     var rf=await sb.from("friends").select("friend_name").eq("username",currentUser);
     if(rf.data&&rf.data.length>0){myFriends=rf.data.map(function(f){return f.friend_name;});localStorage.setItem("creatorhub_friends_"+currentUser,JSON.stringify(myFriends));}
@@ -283,6 +286,8 @@ async function loadAllData(){
   }finally{
     renderPosts("all");
     renderRecruits();
+    renderMatch();
+    renderMyDeals();
     renderFriendsList();
     renderChatContacts();
     setupRealtime();
@@ -708,7 +713,7 @@ function publishMatch(){
   var item={
     id:'m'+Date.now(),title:title,budget:budget||'面议',desc:desc,
     platforms:platforms,tags:tags.length?tags:['对接'],
-    detail:desc
+    detail:desc,deal_status:'open',deal_partner:''
   };
   if(role==='brand'){
     item.brand=myProfile.name;item.avatar=myProfile.name.slice(0,1);item.avatarBg='';
@@ -717,6 +722,7 @@ function publishMatch(){
     item.creator=myProfile.name;item.avatar=myProfile.name.slice(0,1);item.avatarBg='';
     creatorSeekingData.unshift(item);
   }
+  sb.from('match_demands').insert({id:item.id,poster:myProfile.name,role:role==='brand'?'品牌方':'达人',platforms:platforms,budget:item.budget,description:title+' · '+desc,deal_status:'open'}).then(function(r){if(r.error)showLoadError(r.error);});
   track('match_demand_publish',{demand_type:role,platform:platforms[0]});
   renderMatch();
   toggleMatchForm();
@@ -926,6 +932,7 @@ function pickPath(role){
 
 var _currentTab='home';
 function switchTab(tab) {
+  ensureDealsUI();
   if(tab!==_currentTab){track('page_view',{page_name:tab,previous_page:_currentTab});_currentTab=tab;}
   document.querySelectorAll('.section-panel').forEach(function(p){p.classList.remove('active');});
   document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.remove('active');});
@@ -939,6 +946,7 @@ function switchTab(tab) {
   if (tab === 'community') renderPosts();
   if (tab === 'square') renderFeed();
   if (tab === 'friends') renderFriendsList();
+  if (tab === 'deals') renderMyDeals();
   if (tab === 'profile') renderProfile();
   if (tab === 'home') initHomepage();
   closeDrawer();
@@ -947,6 +955,19 @@ function switchTab(tab) {
 document.querySelectorAll('.tab-btn').forEach(function(btn){
   btn.addEventListener('click', function(){ switchTab(btn.dataset.tab); });
 });
+
+function ensureDealsUI(){var nav=document.getElementById('tabNav');if(nav&&!document.querySelector('[data-tab="deals"]')){var btn=document.createElement('button');btn.className='tab-btn';btn.dataset.tab='deals';btn.textContent='📋 我的对接';btn.addEventListener('click',function(){switchTab('deals');});nav.insertBefore(btn,document.querySelector('[data-tab="friends"]')||null);}if(!document.getElementById('panel-deals')){var panel=document.createElement('section');panel.className='section-panel';panel.id='panel-deals';panel.innerHTML='<div class="panel-header section-head"><div><span class="sticky-label">交易闭环</span><h2 class="section-title">📋 我的对接</h2></div></div><div id="myDealsGrid" class="my-deals-grid"></div>';var profile=document.getElementById('panel-profile');if(profile&&profile.parentNode)profile.parentNode.insertBefore(panel,profile);else document.getElementById('mainApp').appendChild(panel);}}
+function normalizeDealItem(d,type){var isBrand=type==='brand';return {id:d.id,title:d.title||d.description||'对接需求',poster:isBrand?(d.brand||d.poster):(d.creator||d.poster),role:isBrand?'品牌方':'达人',platforms:safeArray(d.platforms),budget:d.budget||'面议',description:d.desc||d.description||d.detail||'',deal_status:d.deal_status||'open',deal_partner:d.deal_partner||'',source:d};}
+function getMatchDemands(){return brandSeekingData.map(function(d){return normalizeDealItem(d,'brand');}).concat(creatorSeekingData.map(function(d){return normalizeDealItem(d,'creator');}));}
+function updateDealLocal(dealId,fields){[brandSeekingData,creatorSeekingData].forEach(function(arr){var d=arr.find(function(x){return x.id===dealId;});if(d)Object.keys(fields).forEach(function(k){d[k]=fields[k];});});}
+function relatedDealForActiveContact(){if(!activeContact||activeContact.id==='world')return null;var name=activeContact.name;return getMatchDemands().find(function(d){return (d.poster===currentUser&&d.deal_partner===name)||(d.poster===name&&d.deal_partner===currentUser)||(d.poster===name&&d.deal_status==='open')||(d.poster===currentUser&&name&&d.deal_status==='open');})||null;}
+function dealStatusLabel(status){return {open:'📋 待对接',negotiating:'💬 洽谈中',active:'🤝 合作中',completed:'✅ 已完成',cancelled:'❌ 已取消'}[status]||status||'待对接';}
+function dealStatusColor(status){return {open:'var(--blue)',negotiating:'var(--orange)',active:'var(--sage)',completed:'var(--muted)',cancelled:'var(--red)'}[status]||'var(--gray)';}
+function dealBarHtml(){var d=relatedDealForActiveContact();if(!d)return '';var partner=activeContact.name;var html='<div class="deal-bar" style="background:'+dealStatusColor(d.deal_status)+'"><span>'+escapeHtml(d.title)+' · '+dealStatusLabel(d.deal_status)+'</span><span class="deal-actions">';if(d.deal_status==='open'||d.deal_status==='negotiating')html+='<button class="btn" onclick="confirmDealAction(decodeURIComponent(\''+encodeURIComponent(d.id)+'\'),decodeURIComponent(\''+encodeURIComponent(partner)+'\'))">确认合作</button>';if(d.deal_status==='active')html+='<button class="btn" onclick="completeDealAction(decodeURIComponent(\''+encodeURIComponent(d.id)+'\'))">标记完成</button>';if(d.deal_status==='completed')html+='<button class="btn" onclick="showReviewDialog(decodeURIComponent(\''+encodeURIComponent(d.id)+'\'),decodeURIComponent(\''+encodeURIComponent(partner)+'\'),\'brand_review_creator\')">评价</button>';return html+'</span></div>';}
+async function confirmDealAction(dealId,partner){var r=await sb.rpc('confirm_deal',{p_deal_id:dealId,p_partner:partner});if(r.error){showToast('操作失败','error');return;}if(r.data==='ok'){updateDealLocal(dealId,{deal_status:'active',deal_partner:partner});showToast('合作已确认！','success');renderChatMessages();renderMyDeals();}else{showToast('操作失败: '+r.data,'error');}}
+async function completeDealAction(dealId){var r=await sb.rpc('complete_deal',{p_deal_id:dealId});if(r.error){showToast('操作失败','error');return;}updateDealLocal(dealId,{deal_status:'completed'});showToast('合作已完成！请评价对方','success');renderChatMessages();renderMyDeals();}
+function openDealChat(partner){if(!partner||partner==='—')return;var contact=contacts.find(function(c){return c.name===partner||c.id==='f_'+partner;});if(!contact){contact={id:'f_'+partner,name:partner,avatar:partner.slice(0,1),avatarBg:avatarGradient(partner),platform:'all',unread:0,lastMsg:'开始对接沟通',messages:[]};contacts.push(contact);}switchTab('chat');selectContact(contact.id);}
+function renderMyDeals(){ensureDealsUI();if(!currentUser)return;var grid=document.getElementById('myDealsGrid');if(!grid)return;var myDeals=getMatchDemands().filter(function(d){return d.poster===currentUser||d.deal_partner===currentUser;});if(!myDeals.length){grid.innerHTML='<div class="empty-state"><div class="empty-icon">📋</div><p>还没有对接记录</p><p class="hint">去对接广场看看有没有合适的需求吧</p></div>';return;}var statusOrder={active:0,negotiating:1,open:2,completed:3,cancelled:4};myDeals.sort(function(a,b){return (statusOrder[a.deal_status]||9)-(statusOrder[b.deal_status]||9);});grid.innerHTML=myDeals.map(function(d,i){var isMine=d.poster===currentUser;var partner=isMine?(d.deal_partner||'—'):d.poster;var role=isMine?'brand_review_creator':'creator_review_brand';return '<article class="card deal-card" style="--tilt:'+randTilt(i)+';--tape:'+randTape(i)+'" onclick="openDealChat(decodeURIComponent(\''+encodeURIComponent(partner)+'\'))"><div class="card-top"><span>🤝 '+escapeHtml(isMine?'我发布的':'我参与的')+'</span><span class="card-status" style="background:'+dealStatusColor(d.deal_status)+'">'+dealStatusLabel(d.deal_status)+'</span></div><h3>'+escapeHtml(d.title)+'</h3><p class="desc">'+escapeHtml(d.description)+'</p><p style="color:rgba(45,45,45,.55);">对方：'+escapeHtml(partner)+'</p>'+(d.deal_status==='completed'?'<button class="btn" onclick="event.stopPropagation();showReviewDialog(decodeURIComponent(\''+encodeURIComponent(d.id)+'\'),decodeURIComponent(\''+encodeURIComponent(partner)+'\'),\''+role+'\')">⭐ 评价</button>':'')+'</article>';}).join('');}
 
 // ========================================
 // FEED (Square)
@@ -1095,7 +1116,7 @@ function renderChatMessages() {
     container.innerHTML = '<p style="color:rgba(45,45,45,.4);text-align:center;margin-top:60px;">👈 左边选一个人开始聊天</p>';
     return;
   }
-  container.innerHTML = activeContact.messages.map(m => `
+  container.innerHTML = dealBarHtml() + activeContact.messages.map(m => `
     <div class="msg-bubble ${m.from === 'me' ? 'mine' : 'theirs'}">
       ${escapeHtml(m.text)}
       <div class="msg-time">${m.time}</div>

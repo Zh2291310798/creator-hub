@@ -265,6 +265,39 @@ input, textarea, select { font: inherit; }
 .invite-card {
   transform: rotate(.2deg);
 }
+.deal-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding: 10px;
+  border: 2px solid var(--ink);
+  border-radius: var(--wobbly-sm);
+  color: #fff;
+  box-shadow: var(--shadow-soft);
+}
+.deal-actions {
+  display: inline-flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.deal-bar .btn {
+  min-height: 30px;
+  padding: 4px 8px;
+  background: var(--white);
+  color: var(--ink);
+  font-size: 13px;
+}
+.my-deals-grid {
+  display: grid;
+  gap: 14px;
+  padding: 20px;
+}
+.deal-card {
+  cursor: pointer;
+}
 .tab-badge {
   display: inline-flex;
   place-items: center;
