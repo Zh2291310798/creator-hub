@@ -221,7 +221,15 @@ CREATE TABLE IF NOT EXISTS tracking_events (
 -- ============================================
 -- RLS 策略（简化版：认证用户可读可写）
 -- ============================================
+CREATE TABLE IF NOT EXISTS post_likes (
+  post_id TEXT NOT NULL,
+  username TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (post_id, username)
+);
+
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE post_likes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE posts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE comments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
@@ -277,6 +285,8 @@ CREATE POLICY "ob_read_own" ON onboarding_status FOR SELECT
   USING (auth.uid() IS NOT NULL);
 CREATE POLICY "ob_update_own" ON onboarding_status FOR UPDATE
   USING (auth.uid() IS NOT NULL);
+CREATE POLICY "post_likes_all_auth" ON post_likes FOR ALL USING (true) WITH CHECK (true);
+
 CREATE POLICY "track_read_own" ON tracking_events FOR SELECT
   USING (true);
 CREATE POLICY "profile_update_own" ON profiles FOR UPDATE
@@ -310,6 +320,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE match_demands;
 ALTER PUBLICATION supabase_realtime ADD TABLE friend_requests;
 ALTER PUBLICATION supabase_realtime ADD TABLE friends;
 ALTER PUBLICATION supabase_realtime ADD TABLE local_demands;
+ALTER PUBLICATION supabase_realtime ADD TABLE post_likes;
 
 -- ============================================
 -- 索引
