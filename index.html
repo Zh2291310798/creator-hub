@@ -3692,8 +3692,8 @@ function acceptRequest(uid) {
   if (idx >= 0) friendRequests.splice(idx, 1);
   if (!myFriends.includes(uid)) myFriends.push(uid);
   // Bidirectional: both users see each other as friends
-  sb.from("friends").upsert({username:myProfile.name,friend_name:uid}).then(function(r){if(r.error)console.error("Friend add failed:",r.error);});
-  sb.from("friends").upsert({username:uid,friend_name:myProfile.name}).then(function(r){if(r.error)console.error("Friend add reverse failed:",r.error);});
+  sb.from("friends").upsert({username:myProfile.name,friend_name:uid},{onConflict:"username,friend_name"}).then(function(r){if(r.error)console.error("Friend add failed:",r.error);});
+  sb.from("friends").upsert({username:uid,friend_name:myProfile.name},{onConflict:"username,friend_name"}).then(function(r){if(r.error)console.error("Friend add reverse failed:",r.error);});
   // Mark the friend request as accepted so it disappears on the requester's side
   sb.from("friend_requests").delete().eq("from_user",uid).eq("to_user",myProfile.name).then(function(r){if(r.error)console.error("Friend request cleanup failed:",r.error);else{delete _localReqActions[uid];}});
   // Notify the requester that their request was accepted
