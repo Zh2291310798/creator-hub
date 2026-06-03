@@ -1,7 +1,7 @@
 // ========================================
 // TRACKING — event logging (MVP: localStorage)
 // ========================================
-function track(e,p){try{p=p||{};var a=JSON.parse(localStorage.getItem("creatorhub_events")||"[]");a.push({event:e,props:p,user:localStorage.getItem("creatorhub_session")||"anonymous",timestamp:Date.now(),session_id:getSessionId()});if(a.length>1000)a.splice(0,a.length-1000);localStorage.setItem("creatorhub_events",JSON.stringify(a))}catch(_){}}
+function track(e,p){try{p=p||{};var sid=getSessionId();var a=JSON.parse(localStorage.getItem("creatorhub_events")||"[]");a.push({event:e,props:p,user:localStorage.getItem("creatorhub_session")||"anonymous",timestamp:Date.now(),session_id:sid});if(a.length>1000)a.splice(0,a.length-1000);localStorage.setItem("creatorhub_events",JSON.stringify(a));if(typeof sb!=="undefined"&&sb.from){sb.from("tracking_events").insert({event:e,props:p,username:currentUser||"anonymous",session_id:sid}).then(function(){},function(){});}}catch(_){}}
 
 // ========================================
 // ERROR CAPTURE & A/B ENGINE
