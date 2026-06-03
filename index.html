@@ -2319,8 +2319,8 @@ function setupRealtime(){
   sb.channel("friends-"+currentUser).on("postgres_changes",{event:"INSERT",schema:"public",table:"friends",filter:"username=eq."+currentUser},function(p){if(p.new&&!myFriends.includes(p.new.friend_name)){myFriends.push(p.new.friend_name);var _si=sentRequests.findIndex(function(s){return s.to===p.new.friend_name;});if(_si>=0)sentRequests.splice(_si,1);updateFriendBadge();renderFriendsList();}}).on("postgres_changes",{event:"DELETE",schema:"public",table:"friends",filter:"username=eq."+currentUser},function(p){if(p.old){var _fi=myFriends.indexOf(p.old.friend_name);if(_fi>=0){myFriends.splice(_fi,1);updateFriendBadge();renderFriendsList();}}}).subscribe();
   sb.channel("local-demands-live").on("postgres_changes",{event:"INSERT",schema:"public",table:"local_demands"},function(p){if(p.new&&!localDemands.find(function(x){return x.id===p.new.id;})){localDemands.unshift(p.new);renderLocalMatch();}}).on("postgres_changes",{event:"DELETE",schema:"public",table:"local_demands"},function(p){if(p.old){var _ldi=localDemands.findIndex(function(x){return x.id===p.old.id;});if(_ldi>=0){localDemands.splice(_ldi,1);renderLocalMatch();}}}).subscribe();
   console.log("Realtime channels subscribed for "+currentUser);
-  window._pollTimer=setInterval(pollUpdates,10000);
-  document.addEventListener('visibilitychange',function(){if(!document.hidden){pollUpdates();if(window._pollTimer)clearInterval(window._pollTimer);window._pollTimer=setInterval(pollUpdates,10000);}else{if(window._pollTimer)clearInterval(window._pollTimer);window._pollTimer=setInterval(pollUpdates,30000);}});
+  window._pollTimer=setInterval(pollUpdates,5000);
+  document.addEventListener('visibilitychange',function(){if(!document.hidden){pollUpdates();if(window._pollTimer)clearInterval(window._pollTimer);window._pollTimer=setInterval(pollUpdates,5000);}else{if(window._pollTimer)clearInterval(window._pollTimer);window._pollTimer=setInterval(pollUpdates,30000);}});
 }
 function pollUpdates(){
   if(!currentUser||document.hidden)return;
