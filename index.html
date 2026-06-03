@@ -2155,10 +2155,12 @@ const sb=supabase.createClient(SB_URL,SB_KEY);
 // AUTH
 // ========================================
 var currentUser=null;
+var myProfileId=null;
 
 // Supabase session -> local state
 async function loadSession(user){
   currentUser=user.user_metadata.username||user.email.split('@')[0];
+  myProfileId=user.id;
   var _a=await sb.from('profiles').select('*').eq('id',user.id).single();
   var p=_a.data;
   if(p){
@@ -2188,10 +2190,9 @@ async function loadSession(user){
   document.getElementById('setRole').value=myProfile.role;
   track('user_login',{is_new:false});
   renderProfile();updateLevelDisplay();updateMyAvatar();
-  var role=myProfile.role;
-  if((role==='student'||role==='career_switcher')&&!localStorage.getItem('creatorhub_onboarding_'+currentUser)){setTimeout(function(){showOnboarding();},500);}
-  setTimeout(function(){checkNotifications();},600);
-  setTimeout(function(){updateNotifyBadge();},700);
+  await checkOnboarding();
+  await checkNotifications();
+  updateNotifyBadge();
   showToast('欢迎回来，'+myProfile.name+'！👋');
 }
 
@@ -2266,6 +2267,7 @@ async function doLogout(){
   try{await sb.removeAllChannels();}catch(e){}
   await sb.auth.signOut();
   currentUser=null;
+  myProfileId=null;
   location.reload();
 }
 
@@ -2300,11 +2302,10 @@ function normalizePost(p){
 }
 
 async function saveXP(amount,reason){
-  if(!currentUser)return;
+  if(!currentUser||!myProfileId)return;
   await sb.from('xp_records').insert({username:currentUser,amount:amount,reason:reason});
   myXP+=amount;myLevel=Math.floor(myXP/100)+1;
-  var _p=await sb.from('profiles').select('id').eq('username',currentUser).single();
-  if(_p.data)await sb.from('profiles').update({xp:myXP,level:myLevel}).eq('id',_p.data.id);
+  await sb.from('profiles').update({xp:myXP,level:myLevel}).eq('id',myProfileId);
   updateLevelDisplay();
 }
 
@@ -3191,7 +3192,8 @@ sb.from("notifications").insert({username:targetName,type:source||"系统",conte
 }
 
 // Check unread notifications for current user on login
-function checkNotifications(){ if(currentUser){ loadNotifications().then(function(list){ if(list.length>0){ var lastSeen=localStorage.getItem('creatorhub_notify_last_seen')||''; list.forEach(function(n){ if(n.created_at>lastSeen){ saveNotify(emoFor(n.type),n.from_user+' → '+n.content.slice(0,30),n.content,actFor(n.type)); } }); } updateNotifyBadge(); }); } }
+async function checkOnboarding(){var role=myProfile.role;if((role==='student'||role==='career_switcher')&&!localStorage.getItem('creatorhub_onboarding_'+currentUser)){showOnboarding();}}
+async function checkNotifications(){ if(currentUser){ var list=await loadNotifications(); if(list.length>0){ var lastSeen=localStorage.getItem('creatorhub_notify_last_seen')||''; list.forEach(function(n){ if(n.created_at>lastSeen){ saveNotify(emoFor(n.type),n.from_user+' → '+n.content.slice(0,30),n.content,actFor(n.type)); } }); } updateNotifyBadge(); } }
 
 // Notification center — parallel to chat notifications, for the bell dropdown
 var _seenNotifs = JSON.parse(sessionStorage.getItem('_seen_notifs') || '{}');
