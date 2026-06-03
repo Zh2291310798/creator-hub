@@ -2073,6 +2073,20 @@ input, textarea, select { font: inherit; }
   </div>
 </div>
 
+<!-- Friend request message dialog -->
+<div class="msg-dialog" id="friendReqDialog" onclick="if(event.target===this)closeFriendReqDialog()">
+  <div class="msg-dialog-card">
+    <h3>👋 加好友</h3>
+    <p>发送给：<strong id="friendReqTarget"></strong></p>
+    <p style="font-size:14px;color:rgba(45,45,45,.5);margin-top:-6px;">介绍一下你是谁、为什么想加好友，提高通过率 ✨</p>
+    <textarea id="friendReqInput" rows="3" placeholder="你好！看到你的帖子想合作交流..."></textarea>
+    <div class="msg-dialog-actions">
+      <button class="btn green" onclick="confirmFriendReq()">👥 发送好友请求</button>
+      <button class="btn secondary" onclick="closeFriendReqDialog()">取消</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="overlay" onclick="closeDrawer()"></div>
 <aside class="drawer" id="drawer" aria-hidden="true">
   <div class="drawer-head">
@@ -2636,6 +2650,39 @@ function openMatchMsg(e,name,role){
 function closeMatchMsg(){
   document.getElementById('msgDialog').classList.remove('show');
 }
+
+// Friend request message dialog
+var _friendReqTarget = '';
+function openFriendReqDialog(uid, sourceName) {
+  if (uid === currentUser || uid === myProfile.name) { showToast('不能加自己为好友'); return; }
+  if (myFriends.includes(uid)) { showToast('你们已经是好友了！'); return; }
+  if (sentRequests.some(function(s){return s.to===uid;})) { showToast('已经发送过好友请求了，等待对方回应'); return; }
+  if (friendRequests.some(function(r){return r.from===uid;})) { showToast('对方已经向你发送了好友请求，请直接接受'); return; }
+  _friendReqTarget = uid;
+  var user = allUsers.find(function(u){return u.id===uid;});
+  var displayName = sourceName || (user ? user.name : uid);
+  document.getElementById('friendReqTarget').textContent = displayName;
+  document.getElementById('friendReqInput').value = '';
+  document.getElementById('friendReqDialog').classList.add('show');
+  setTimeout(function(){ document.getElementById('friendReqInput').focus(); },200);
+}
+function closeFriendReqDialog(){
+  document.getElementById('friendReqDialog').classList.remove('show');
+  _friendReqTarget = '';
+}
+function confirmFriendReq(){
+  var msg = document.getElementById('friendReqInput').value.trim();
+  if (!msg) { showToast('请填写加好友的来意，让对方知道你是谁'); return; }
+  var uid = _friendReqTarget;
+  closeFriendReqDialog();
+  var user = allUsers.find(function(u){return u.id===uid;});
+  sentRequests.push({to:uid,time:'刚刚'});
+  sb.from("friend_requests").upsert({from_user:myProfile.name,to_user:uid,status:"pending",message:msg},{onConflict:"from_user,to_user"}).then(function(r){if(r.error)console.error("Friend request failed:",r.error);});
+  deliverNotification(uid,'👥 好友请求：'+msg,'好友请求');
+  renderFriendsList();
+  if (user) showFriendProfile(uid);
+  showToast('已向 '+(user?user.name:uid)+' 发送好友请求，对方将收到你的来意 💌');
+}
 function sendMatchMsg(){
   var msg = document.getElementById('msgDialogInput').value.trim();
   if(!msg){ showToast('请写一段留言');return; }
@@ -3118,10 +3165,15 @@ document.addEventListener('keydown', function(e){
   if (e.key === 'Enter' && e.ctrlKey && document.activeElement === document.getElementById('msgDialogInput')) {
     e.preventDefault(); sendMatchMsg();
   }
+  // Enter in friend request textarea (Ctrl+Enter to send)
+  if (e.key === 'Enter' && e.ctrlKey && document.activeElement === document.getElementById('friendReqInput')) {
+    e.preventDefault(); confirmFriendReq();
+  }
   // Escape closes dialogs
   if (e.key === 'Escape') {
     closeDrawer();
     closeMatchMsg();
+    closeFriendReqDialog();
   }
 });
 
@@ -3687,21 +3739,8 @@ function closeUserPopup(){
 }
 
 function sendFriendRequest(uid) {
-  if (uid === currentUser || uid === myProfile.name) { showToast('不能加自己为好友'); return; }
-  if (myFriends.includes(uid)) { showToast('你们已经是好友了！'); return; }
-  if (sentRequests.some(function(s){return s.to===uid;})) { showToast('已经发送过好友请求了，等待对方回应'); return; }
-  if (friendRequests.some(function(r){return r.from===uid;})) { showToast('对方已经向你发送了好友请求，请直接接受'); return; }
-  const user = allUsers.find(u => u.id === uid);
-  // Prompt for message explaining why they want to add this friend
-  var msg = prompt('请输入加好友的来意（例如：看到你的帖子想合作、对你的内容感兴趣等）：', '你好！想认识一下，一起交流合作 🤝');
-  if (msg === null) return; // user cancelled
-  msg = msg.trim() || '你好！想认识一下，一起交流合作 🤝';
-  sentRequests.push({to:uid,time:'刚刚'});
-  sb.from("friend_requests").upsert({from_user:myProfile.name,to_user:uid,status:"pending",message:msg},{onConflict:"from_user,to_user"}).then(function(r){if(r.error)console.error("Friend request failed:",r.error);});
-  deliverNotification(uid,'👥 好友请求：'+msg,'好友请求');
-  renderFriendsList();
-  showFriendProfile(uid);
-  showToast('已向 '+user.name+' 发送好友请求，对方将在聊天中收到通知 💌');
+  var user = allUsers.find(function(u){return u.id===uid;});
+  openFriendReqDialog(uid, user ? user.name : uid);
 }
 
 function acceptRequest(uid) {
@@ -3786,13 +3825,7 @@ function quickAddFriend(name) {
     showToast('已经发送或收到过好友请求了');
     return;
   }
-  var msg = prompt('请输入加好友的来意（例如：看到你的帖子想合作、对你的内容感兴趣等）：', '你好！想认识一下，一起交流合作 🤝');
-  if (msg === null) return;
-  msg = msg.trim() || '你好！想认识一下，一起交流合作 🤝';
-  sentRequests.push({to:user.id,time:'刚刚'});
-  sb.from("friend_requests").upsert({from_user:myProfile.name,to_user:user.id,status:"pending",message:msg},{onConflict:"from_user,to_user"}).then(function(r){if(r.error)console.error("Friend request failed:",r.error);});
-  deliverNotification(user.id,'👥 好友请求：'+msg,'好友请求');
-  showToast('已向 '+user.name+' 发送好友请求，对方将在聊天中收到通知 💌');
+  openFriendReqDialog(user.id, user.name);
 }
 
 function chatWithFriend(uid) {
