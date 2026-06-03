@@ -35,6 +35,25 @@ const SB_URL='https://bbjdrjbqkhtcqvduqmpj.supabase.co';
 const SB_KEY='sb_publishable_KwoaGM3yrgCWUolbwfCHVg_Qk41OFsv';
 const sb=supabase.createClient(SB_URL,SB_KEY);
 
+// Global Supabase error interceptor
+(function(){
+  var _from=sb.from.bind(sb);
+  sb.from=function(t){
+    var qb=_from(t);
+    var _origThen=qb.then;
+    qb.then=function(f,r){
+      return _origThen.call(qb,function(res){
+        if(res&&res.error)console.error("["+t+"]",(res.error&&res.error.message)||res.error);
+        return f?f(res):res;
+      },function(e){
+        console.error("["+t+"]",(e&&e.message)||e);
+        if(r)return r(e);
+      });
+    };
+    return qb;
+  };
+})();
+
 // ========================================
 // AUTH
 // ========================================
