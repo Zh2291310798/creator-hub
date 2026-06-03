@@ -3208,20 +3208,28 @@ handleTopbarWrap();
 // ========================================
 function renderRecruits(filter) {
   filter = filter || 'all';
-  try {
   track('recruit_view',{filter:filter});
   var items = filter === 'all' ? recruits : recruits.filter(function(r) {
+    if (!r) return false;
     if (['urgent','maker','merchant','tech'].indexOf(filter) >= 0) return r.type === filter || r.statusClass === filter;
-    if (filter === 'all-plat') return r.platforms.length > 1;
-    return r.platforms.indexOf(filter) >= 0;
+    if (filter === 'all-plat') return (r.platforms||[]).length > 1;
+    return (r.platforms||[]).indexOf(filter) >= 0;
   });
   if (!dom.recruitGrid) return;
+  if (!items.length) {
+    dom.recruitGrid.innerHTML = '<p style="text-align:center;padding:40px;color:rgba(45,45,45,.4);">暂无招募信息<br><small>点击右下角 + 发布第一条招募吧！</small></p>';
+    return;
+  }
   var html = '';
   for (var i = 0; i < items.length; i++) {
     var r = items[i];
     var posterName = (r && r.poster) || '匿名用户';
     var posterAvatar = (r && r.avatar) || posterName.slice(0,1);
     var isMine = (r.postedBy === myProfile.name || r.poster === myProfile.name);
+    var plats = (r && r.platforms) || [];
+    if (typeof plats === 'string') { try { plats = JSON.parse(plats); } catch(_) { plats = []; } }
+    var tgs = (r && r.tags) || [];
+    if (typeof tgs === 'string') { try { tgs = JSON.parse(tgs); } catch(_) { tgs = []; } }
     html += '<article class="card" style="--tilt:' + randTilt(i) + ';--tape:' + randTape(i) + '">';
     html += '<div class="card-top">';
     html += '<span class="card-status ' + (r.statusClass||'') + '">' + escapeHtml(r.status||'') + '</span>';
@@ -3230,8 +3238,8 @@ function renderRecruits(filter) {
     html += '<h3>' + escapeHtml(r.title||'') + '</h3>';
     html += '<div class="budget">' + escapeHtml(r.budget||'') + (r.mode ? ' · ' + escapeHtml(r.mode) : '') + (r.city ? ' · 📍' + escapeHtml(r.city) : '') + '</div>';
     html += '<p class="desc">' + escapeHtml(r.desc||'') + '</p>';
-    html += '<div class="platform-tags">' + (r.platforms||[]).map(platformTagHtml).join('') + '</div>';
-    html += '<div class="tags">' + (r.tags||[]).map(function(t){ return '<span class="tag">' + escapeHtml(t) + '</span>'; }).join('') + '</div>';
+    html += '<div class="platform-tags">' + plats.map(platformTagHtml).join('') + '</div>';
+    html += '<div class="tags">' + tgs.map(function(t){ return '<span class="tag">' + escapeHtml(t) + '</span>'; }).join('') + '</div>';
     html += '<div class="card-foot">';
     html += '<div class="maker">';
     html += '<span class="avatar ' + (r.avatarBg||'') + '">' + posterAvatar + '</span>';
@@ -3244,7 +3252,6 @@ function renderRecruits(filter) {
     html += '</article>';
   }
   dom.recruitGrid.innerHTML = html;
-  } catch(e) { console.error('renderRecruits error:', e); }
 }
 
 function openRecruitDrawer(id) {

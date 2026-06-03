@@ -371,6 +371,13 @@ INSERT INTO posts (id, author, author_avatar, title, category, category_label, c
 ('p5', '运营老司机', '运', '跨平台运营值不值得？抖音+小红书真实对比', 'qa', '求助问答', '目前在抖音做了半年有2w粉，在想要不要同时做小红书。两边内容风格差异大…', 'all')
 ON CONFLICT (id) DO NOTHING;
 
+-- 种子招募（让招募页不空）
+INSERT INTO recruits (id, title, poster, poster_avatar, type, mode, description, detail, budget, city, platforms, tags, status, status_class, posted_by) VALUES
+('r1', '急需小红书运营达人', '品牌主理人阿Jay', 'J', 'maker', '全职', '寻找小红书运营达人，负责品牌账号的日常运营和内容策划', '需要3年以上小红书运营经验，熟悉平台算法，有成功案例', '8K-15K', '上海', '["xhs"]', '["运营","达人","急招"]', '招募中', 'active-recruit', '品牌主理人阿Jay'),
+('r2', '抖音短视频拍摄', '运营老司机', '运', 'maker', '项目制', '需要一位抖音短视频拍摄剪辑，美食类内容', '拍摄+剪辑一体，有美食类账号经验优先', '项目报价', '北京', '["douyin"]', '["拍摄","剪辑","美食"]', '招募中', 'active-recruit', '运营老司机'),
+('r3', '全平台代运营合作', '品牌主理人阿Jay', 'J', 'merchant', '全职', '品牌方寻找全平台代运营团队，覆盖小红书+抖音+B站', '需要完整的运营方案和过往案例', '面议', '深圳', '["xhs","douyin","bilibili"]', '["代运营","品牌","多平台"]', '招募中', 'active-recruit', '品牌主理人阿Jay')
+ON CONFLICT (id) DO NOTHING;
+
 -- ============================================
 -- ✅ 执行完毕
 -- ============================================
