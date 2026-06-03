@@ -3206,35 +3206,45 @@ handleTopbarWrap();
 // ========================================
 // RECRUIT
 // ========================================
-function renderRecruits(filter = 'all') {
+function renderRecruits(filter) {
+  filter = filter || 'all';
+  try {
   track('recruit_view',{filter:filter});
-  let items = filter === 'all' ? recruits : recruits.filter(r => {
-    if (['urgent','maker','merchant','tech'].includes(filter)) return r.type === filter || r.statusClass === filter;
+  var items = filter === 'all' ? recruits : recruits.filter(function(r) {
+    if (['urgent','maker','merchant','tech'].indexOf(filter) >= 0) return r.type === filter || r.statusClass === filter;
     if (filter === 'all-plat') return r.platforms.length > 1;
-    return r.platforms.includes(filter);
+    return r.platforms.indexOf(filter) >= 0;
   });
-  dom.recruitGrid.innerHTML = items.map((r, i) => `
-    <article class="card" style="--tilt:${randTilt(i)};--tape:${randTape(i)}">
-      <div class="card-top">
-        <span class="card-status ${r.statusClass}">${r.status}</span>
-        <span class="card-no">#${String(i+1).padStart(2,'0')}</span>
-      </div>
-      <h3>${escapeHtml(r.title)}</h3>
-      <div class="budget">${escapeHtml(r.budget)}${r.mode ? ' · '+escapeHtml(r.mode) : ''}${r.city ? ' · 📍'+escapeHtml(r.city) : ''}</div>
-      <p class="desc">${escapeHtml(r.desc)}</p>
-      <div class="platform-tags">${r.platforms.map(platformTagHtml).join('')}</div>
-      <div class="tags">${r.tags.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>
-      <div class="card-foot">
-        <div class="maker">
-          <span class="avatar ${r.avatarBg}">${r.avatar || (r.poster||'?').slice(0,1)}</span>
-          <span onclick="event.stopPropagation();showFriendProfile('${r.poster}')" style="cursor:pointer;text-decoration:underline;font-weight:600;color:var(--red);" title="点击查看发布者主页">📝 ${escapeHtml(r.poster || '匿名用户')}</span>
-        </div>
-        <button class="btn" onclick="event.stopPropagation();openRecruitDrawer('${r.id}')">查看详情</button>
-        <button class="mini-btn-link" onclick="event.stopPropagation();quickAddFriend('${jsEscape(r.poster)}')" title="加好友">👥</button>
-        ${r.postedBy === myProfile.name || r.poster === myProfile.name || isAdmin ? '<button class="mini-btn reject" onclick="event.stopPropagation();deleteRecruit(\'' + r.id + '\')" title="删除">🗑</button>' : ''}
-      </div>
-    </article>
-  `).join('');
+  if (!dom.recruitGrid) return;
+  var html = '';
+  for (var i = 0; i < items.length; i++) {
+    var r = items[i];
+    var posterName = (r && r.poster) || '匿名用户';
+    var posterAvatar = (r && r.avatar) || posterName.slice(0,1);
+    var isMine = (r.postedBy === myProfile.name || r.poster === myProfile.name);
+    html += '<article class="card" style="--tilt:' + randTilt(i) + ';--tape:' + randTape(i) + '">';
+    html += '<div class="card-top">';
+    html += '<span class="card-status ' + (r.statusClass||'') + '">' + escapeHtml(r.status||'') + '</span>';
+    html += '<span class="card-no">#' + String(i+1).padStart(2,'0') + '</span>';
+    html += '</div>';
+    html += '<h3>' + escapeHtml(r.title||'') + '</h3>';
+    html += '<div class="budget">' + escapeHtml(r.budget||'') + (r.mode ? ' · ' + escapeHtml(r.mode) : '') + (r.city ? ' · 📍' + escapeHtml(r.city) : '') + '</div>';
+    html += '<p class="desc">' + escapeHtml(r.desc||'') + '</p>';
+    html += '<div class="platform-tags">' + (r.platforms||[]).map(platformTagHtml).join('') + '</div>';
+    html += '<div class="tags">' + (r.tags||[]).map(function(t){ return '<span class="tag">' + escapeHtml(t) + '</span>'; }).join('') + '</div>';
+    html += '<div class="card-foot">';
+    html += '<div class="maker">';
+    html += '<span class="avatar ' + (r.avatarBg||'') + '">' + posterAvatar + '</span>';
+    html += '<span onclick="event.stopPropagation();showFriendProfile(\'' + r.poster + '\')" style="cursor:pointer;text-decoration:underline;font-weight:600;color:var(--red);" title="点击查看发布者主页">📝 ' + escapeHtml(posterName) + '</span>';
+    html += '</div>';
+    html += '<button class="btn" onclick="event.stopPropagation();openRecruitDrawer(\'' + r.id + '\')">查看详情</button>';
+    html += '<button class="mini-btn-link" onclick="event.stopPropagation();quickAddFriend(\'' + jsEscape(r.poster) + '\')" title="加好友">👥</button>';
+    if (isMine || isAdmin) { html += '<button class="mini-btn reject" onclick="event.stopPropagation();deleteRecruit(\'' + r.id + '\')" title="删除">🗑</button>'; }
+    html += '</div>';
+    html += '</article>';
+  }
+  dom.recruitGrid.innerHTML = html;
+  } catch(e) { console.error('renderRecruits error:', e); }
 }
 
 function openRecruitDrawer(id) {
@@ -3361,49 +3371,51 @@ function renderMatch() {
     document.getElementById('matchColumns').style.gridTemplateColumns = '1fr';
   }
 
-  dom.brandSeeking.innerHTML = brandSeekingData.map((b, i) => `
-    <article class="card" style="--tilt:${randTilt(i)};--tape:${randTape(i)}">
-      <div class="card-top">
-        <span class="card-status seeking">品牌方</span>
-      </div>
-      <h3>${escapeHtml(b.title)}</h3>
-      <div class="budget">${escapeHtml(b.budget)}</div>
-      <p class="desc">${escapeHtml(b.desc)}</p>
-      <div class="platform-tags">${b.platforms.map(platformTagHtml).join('')}</div>
-      <div class="tags">${b.tags.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>
-      <div class="card-foot">
-        <div class="maker">
-          <span class="avatar ${b.avatarBg}">${b.avatar || (b.brand||'?').slice(0,1)}</span>
-          <span onclick="event.stopPropagation();showFriendProfile('${b.brand}')" style="cursor:pointer;text-decoration:underline;font-weight:600;color:var(--red);" title="点击查看发布者主页">📝 ${escapeHtml(b.brand || '匿名用户')}</span>
-        </div>
-        <button class="btn" onclick="event.stopPropagation();openMatchMsg(event,'${jsEscape(b.brand)}','品牌方')">我想合作</button>
-        <button class="mini-btn-link" onclick="event.stopPropagation();quickAddFriend('${jsEscape(b.brand)}')" title="加好友">👥</button>
-        ${b.brand === myProfile.name || isAdmin ? '<button class="mini-btn reject" onclick="event.stopPropagation();deleteMatch(\'' + b.id + '\',\'brand\')" title="删除">🗑</button>' : ''}
-      </div>
-    </article>
-  `).join('');
+  var bhtml = '';
+  for (var bi = 0; bi < brandSeekingData.length; bi++) {
+    var b = brandSeekingData[bi];
+    var bname = (b && b.brand) || '匿名用户';
+    var bavatar = (b && b.avatar) || bname.slice(0,1);
+    bhtml += '<article class="card" style="--tilt:' + randTilt(bi) + ';--tape:' + randTape(bi) + '">';
+    bhtml += '<div class="card-top"><span class="card-status seeking">品牌方</span></div>';
+    bhtml += '<h3>' + escapeHtml(b.title||'') + '</h3>';
+    bhtml += '<div class="budget">' + escapeHtml(b.budget||'') + '</div>';
+    bhtml += '<p class="desc">' + escapeHtml(b.desc||'') + '</p>';
+    bhtml += '<div class="platform-tags">' + (b.platforms||[]).map(platformTagHtml).join('') + '</div>';
+    bhtml += '<div class="tags">' + (b.tags||[]).map(function(t){ return '<span class="tag">' + escapeHtml(t) + '</span>'; }).join('') + '</div>';
+    bhtml += '<div class="card-foot">';
+    bhtml += '<div class="maker"><span class="avatar ' + (b.avatarBg||'') + '">' + bavatar + '</span>';
+    bhtml += '<span onclick="event.stopPropagation();showFriendProfile(\'' + b.brand + '\')" style="cursor:pointer;text-decoration:underline;font-weight:600;color:var(--red);" title="点击查看发布者主页">📝 ' + escapeHtml(bname) + '</span>';
+    bhtml += '</div>';
+    bhtml += '<button class="btn" onclick="event.stopPropagation();openMatchMsg(event,\'' + jsEscape(b.brand) + '\',\'品牌方\')">我想合作</button>';
+    bhtml += '<button class="mini-btn-link" onclick="event.stopPropagation();quickAddFriend(\'' + jsEscape(b.brand) + '\')" title="加好友">👥</button>';
+    if (b.brand === myProfile.name || isAdmin) { bhtml += '<button class="mini-btn reject" onclick="event.stopPropagation();deleteMatch(\'' + b.id + '\',\'brand\')" title="删除">🗑</button>'; }
+    bhtml += '</div></article>';
+  }
+  dom.brandSeeking.innerHTML = bhtml;
 
-  dom.creatorSeeking.innerHTML = creatorSeekingData.map((c, i) => `
-    <article class="card" style="--tilt:${randTilt(i)};--tape:${randTape(i)}">
-      <div class="card-top">
-        <span class="card-status seeking">达人</span>
-      </div>
-      <h3>${escapeHtml(c.title)}</h3>
-      <div class="budget">${escapeHtml(c.budget)}</div>
-      <p class="desc">${escapeHtml(c.desc)}</p>
-      <div class="platform-tags">${c.platforms.map(platformTagHtml).join('')}</div>
-      <div class="tags">${c.tags.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>
-      <div class="card-foot">
-        <div class="maker">
-          <span class="avatar ${c.avatarBg}">${c.avatar || (c.creator||'?').slice(0,1)}</span>
-          <span onclick="event.stopPropagation();showFriendProfile('${c.creator}')" style="cursor:pointer;text-decoration:underline;font-weight:600;color:var(--red);" title="点击查看发布者主页">📝 ${escapeHtml(c.creator || '匿名用户')}</span>
-        </div>
-        <button class="btn" onclick="event.stopPropagation();openMatchMsg(event,'${jsEscape(c.creator)}','达人')">联系TA</button>
-        <button class="mini-btn-link" onclick="event.stopPropagation();quickAddFriend('${jsEscape(c.creator)}')" title="加好友">👥</button>
-        ${c.creator === myProfile.name || isAdmin ? '<button class="mini-btn reject" onclick="event.stopPropagation();deleteMatch(\'' + c.id + '\',\'creator\')" title="删除">🗑</button>' : ''}
-      </div>
-    </article>
-  `).join('');
+  var chtml = '';
+  for (var ci = 0; ci < creatorSeekingData.length; ci++) {
+    var c = creatorSeekingData[ci];
+    var cname = (c && c.creator) || '匿名用户';
+    var cavatar = (c && c.avatar) || cname.slice(0,1);
+    chtml += '<article class="card" style="--tilt:' + randTilt(ci) + ';--tape:' + randTape(ci) + '">';
+    chtml += '<div class="card-top"><span class="card-status seeking">达人</span></div>';
+    chtml += '<h3>' + escapeHtml(c.title||'') + '</h3>';
+    chtml += '<div class="budget">' + escapeHtml(c.budget||'') + '</div>';
+    chtml += '<p class="desc">' + escapeHtml(c.desc||'') + '</p>';
+    chtml += '<div class="platform-tags">' + (c.platforms||[]).map(platformTagHtml).join('') + '</div>';
+    chtml += '<div class="tags">' + (c.tags||[]).map(function(t){ return '<span class="tag">' + escapeHtml(t) + '</span>'; }).join('') + '</div>';
+    chtml += '<div class="card-foot">';
+    chtml += '<div class="maker"><span class="avatar ' + (c.avatarBg||'') + '">' + cavatar + '</span>';
+    chtml += '<span onclick="event.stopPropagation();showFriendProfile(\'' + c.creator + '\')" style="cursor:pointer;text-decoration:underline;font-weight:600;color:var(--red);" title="点击查看发布者主页">📝 ' + escapeHtml(cname) + '</span>';
+    chtml += '</div>';
+    chtml += '<button class="btn" onclick="event.stopPropagation();openMatchMsg(event,\'' + jsEscape(c.creator) + '\',\'达人\')">联系TA</button>';
+    chtml += '<button class="mini-btn-link" onclick="event.stopPropagation();quickAddFriend(\'' + jsEscape(c.creator) + '\')" title="加好友">👥</button>';
+    if (c.creator === myProfile.name || isAdmin) { chtml += '<button class="mini-btn reject" onclick="event.stopPropagation();deleteMatch(\'' + c.id + '\',\'creator\')" title="删除">🗑</button>'; }
+    chtml += '</div></article>';
+  }
+  dom.creatorSeeking.innerHTML = chtml;
   track('match_view',{view_mode:matchFilter});
 }
 
