@@ -37,6 +37,50 @@ jobs:
           echo "=== CSS variables ==="
           grep -c '\-\-' index.html || true
 
+  unit-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run unit tests
+        run: node tests/unit.test.js
+
+  security-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check RLS DELETE ownership
+        run: |
+          grep -F 'USING ((select username from profiles where id = auth.uid()) = author);' supabase/migration.sql
+          grep -F 'USING ((select username from profiles where id = auth.uid()) = poster);' supabase/migration.sql
+          grep -F 'USING ((select username from profiles where id = auth.uid()) = username);' supabase/migration.sql
+
+      - name: Check dynamic onclick encoding guards
+        run: |
+          grep -F 'decodeURIComponent' js/app.js
+          grep -F 'encodeURIComponent' js/app.js
+          grep -F 'escapeHtml' js/app.js
+
+  smoke-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Chrome for Playwright
+        run: npx playwright install chrome
+
+      - name: Run smoke tests
+        run: npx playwright test
+
   deploy-pages:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     needs: validate
