@@ -2323,8 +2323,10 @@ function setupRealtime(){
   sb.channel("local-demands-live").on("postgres_changes",{event:"INSERT",schema:"public",table:"local_demands"},function(p){if(p.new&&!localDemands.find(function(x){return x.id===p.new.id;})){localDemands.unshift(p.new);renderLocalMatch();}}).on("postgres_changes",{event:"DELETE",schema:"public",table:"local_demands"},function(p){if(p.old){var _ldi=localDemands.findIndex(function(x){return x.id===p.old.id;});if(_ldi>=0){localDemands.splice(_ldi,1);renderLocalMatch();}}}).subscribe();
   console.log("Realtime channels subscribed for "+currentUser);
   window._pollTimer=setInterval(pollUpdates,10000);
-  // Heartbeat: update last_seen every 30s for online presence
-  if(!window._heartbeatTimer){window._heartbeatTimer=setInterval(function(){if(currentUser)sb.from('profiles').update({last_seen:new Date().toISOString()}).eq('username',myProfile.name).then(function(){}).catch(function(){});},30000);}
+  // Heartbeat: update last_seen every 15s for online presence
+  if(!window._heartbeatTimer){window._heartbeatTimer=setInterval(function(){if(currentUser)sb.from('profiles').update({last_seen:new Date().toISOString()}).eq('username',myProfile.name).then(function(){}).catch(function(){});},15000);}
+  // Mark offline on page close
+  window.addEventListener('beforeunload',function(){if(currentUser)sb.from('profiles').update({last_seen:'1970-01-01T00:00:00Z'}).eq('username',myProfile.name).then(function(){}).catch(function(){});});
   document.addEventListener('visibilitychange',function(){if(!document.hidden){pollUpdates();if(window._pollTimer)clearInterval(window._pollTimer);window._pollTimer=setInterval(pollUpdates,10000);}else{if(window._pollTimer)clearInterval(window._pollTimer);window._pollTimer=setInterval(pollUpdates,30000);}});
 }
 function pollUpdates(){
@@ -2430,7 +2432,7 @@ async function loadAllData(){
     });
     renderChatContacts();
   }
-    var rpro=await sb.from("profiles").select("*");var _onlineCutoff=Date.now()-120000;if(rpro.data&&rpro.data.length>0){allUsers.length=0;rpro.data.forEach(function(p){var _isOnline=p.last_seen?new Date(p.last_seen).getTime()>_onlineCutoff:false;allUsers.push({id:p.username||p.id,name:p.username||"",avatar:(p.avatar_text||p.username||"?").slice(0,1),avatarBg:"",role:p.role||"creator",roleLabel:p.role_label||"",online:_isOnline,desc:p.bio||"",platforms:[],tags:[],followers:p.level?String.fromCharCode(76,118,46)+p.level:""});});}
+    var rpro=await sb.from("profiles").select("*");var _onlineCutoff=Date.now()-30000;if(rpro.data&&rpro.data.length>0){allUsers.length=0;rpro.data.forEach(function(p){var _isOnline=p.last_seen?new Date(p.last_seen).getTime()>_onlineCutoff:false;allUsers.push({id:p.username||p.id,name:p.username||"",avatar:(p.avatar_text||p.username||"?").slice(0,1),avatarBg:"",role:p.role||"creator",roleLabel:p.role_label||"",online:_isOnline,desc:p.bio||"",platforms:[],tags:[],followers:p.level?String.fromCharCode(76,118,46)+p.level:""});});}
   var rmd=await sb.from("match_demands").select("*").order("created_at",{ascending:false}).limit(50);if(rmd.data&&rmd.data.length>0){rmd.data.forEach(function(md){var arr=md.role==="brand"?brandSeekingData:creatorSeekingData;if(!arr.find(function(x){return x.id===md.id;})){var nmd2={id:md.id,title:md.description?md.description.slice(0,30):"",budget:md.budget||"面议",desc:md.description||"",platforms:typeof md.platforms==="string"?JSON.parse(md.platforms||"[]"):(md.platforms||[]),tags:[],detail:md.description||"",avatar:md.poster?md.poster.slice(0,1):"?",avatarBg:""};if(md.role==="brand"){nmd2.brand=md.poster;}else{nmd2.creator=md.poster;}arr.unshift(nmd2);}});}
   // Load my likes
   var rpl=await sb.from("post_likes").select("post_id").eq("username",myProfile.name);
