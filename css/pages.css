@@ -82,6 +82,32 @@
 .onboarding-content-step .ob-item { padding:10px 12px;background:var(--gray);border-radius:8px;margin:6px 0;cursor:pointer;transition:background .15s; }
 .onboarding-content-step .ob-item:hover { background:var(--muted); }
 .onboarding-content-step .ob-item.selected { background:var(--blue);color:#fff; }
+.ob-chip-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin: 16px 0;
+}
+.ob-platform-chip,
+.ob-mentor-chip {
+  padding: 8px 14px;
+  border: 2px solid var(--muted);
+  border-radius: var(--wobbly-sm);
+  background: var(--white);
+  text-align: left;
+}
+.ob-platform-chip.selected,
+.ob-mentor-chip.selected {
+  background: var(--blue);
+  border-color: var(--ink);
+  color: #fff;
+}
+.ob-mentor-chip {
+  display: block;
+  width: 100%;
+  margin-bottom: 6px;
+}
 
 /* Notification bell */
 .notify-bell { position:relative;cursor:pointer;font-size:22px;margin-right:8px;user-select:none; }

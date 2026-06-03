@@ -1152,7 +1152,7 @@ sb.from("notifications").insert({username:targetName,type:source||"系统",conte
 }
 
 // Check unread notifications for current user on login
-async function checkOnboarding(){var role=myProfile.role;if((role==='student'||role==='career_switcher')&&!localStorage.getItem('creatorhub_onboarding_'+currentUser)){showOnboarding();}}
+async function checkOnboarding(){if(currentUser&&!localStorage.getItem('creatorhub_onboarding_'+currentUser)){showOnboarding();}}
 async function checkNotifications(){ if(currentUser){ var list=await loadNotifications(); if(list.length>0){ var lastSeen=localStorage.getItem('creatorhub_notify_last_seen')||''; list.forEach(function(n){ if(n.created_at>lastSeen){ saveNotify(emoFor(n.type),n.from_user+' → '+n.content.slice(0,30),n.content,actFor(n.type)); } }); } updateNotifyBadge(); } }
 
 // Notification center — parallel to chat notifications, for the bell dropdown
@@ -1592,16 +1592,15 @@ function deleteLocalDemand(did) {
 // ========================================
 // COMMUNITY
 // ========================================
-function createPost() {
-  const title = document.getElementById('postTitle').value.trim();
-  const content = document.getElementById('postContent').value.trim();
-  const category = document.getElementById('postCategory').value;
-  const platform = document.getElementById('postPlatform').value;
+function createPost(titleArg,categoryArg,contentArg,platformArg) {
+  const title = titleArg || document.getElementById('postTitle').value.trim();
+  const content = contentArg || document.getElementById('postContent').value.trim();
+  const category = categoryArg || document.getElementById('postCategory').value;
+  const platform = platformArg || document.getElementById('postPlatform').value;
   const feedback = document.getElementById('postFeedback');
 
   if (!title || !content) {
-    feedback.textContent = '标题和内容不能为空！';
-    feedback.style.color = 'var(--red)';
+    if(feedback){feedback.textContent = '标题和内容不能为空！';feedback.style.color = 'var(--red)';}
     return;
   }
 
@@ -1617,13 +1616,10 @@ function createPost() {
     likes: 0, comments: 0
   });
 
-  document.getElementById('postTitle').value = '';
-  document.getElementById('postContent').value = '';
+  if(!titleArg){document.getElementById('postTitle').value = '';document.getElementById('postContent').value = '';}
   track('post_create',{category:category,length:content.length});
   addXP(50, '发布帖子');
-  feedback.textContent = '发布成功！+50XP';
-  feedback.style.color = 'var(--sage)';
-  setTimeout(() => { feedback.textContent = ''; }, 2000);
+  if(feedback&&!titleArg){feedback.textContent = '发布成功！+50XP';feedback.style.color = 'var(--sage)';setTimeout(() => { feedback.textContent = ''; }, 2000);}
   renderPosts();
 }
 
@@ -2261,47 +2257,11 @@ var onboardingMentors=[
   {name:'周姐',role:'服装店主',desc:'淘宝店主·小红书穿搭博主'},
   {name:'王哥',role:'品牌市场经理',desc:'5年品牌投放经验·合作过200+达人'}
 ];
-function showOnboarding(){_onboardingStep=1;_onboardingData={followed:[],articlesRead:[]};var el=document.getElementById('onboardingOverlay');if(el){el.classList.add('show');renderOnboardingStep();}}
-function skipOnboarding(){var el=document.getElementById('onboardingOverlay');if(el)el.classList.remove('show');_onboardingData={};}
-function nextOnboardingStep(){if(_onboardingStep<5){_onboardingStep++;renderOnboardingStep();}else{completeOnboarding();}}
-function renderOnboardingStep(){
-  var bar=document.getElementById('onboardingBar');bar.style.width=(_onboardingStep/5*100)+'%';
-  var content=document.getElementById('onboardingContent');
-  var nextBtn=document.getElementById('onboardingNextBtn');
-  if(_onboardingStep===1){
-    var role=myProfile.role;var welcome='👋 欢迎来到 CreatorHub！';
-    if(role==='student')welcome='🎓 欢迎！刚毕业不用怕，这里有人带你入行';
-    else if(role==='career_switcher')welcome='🆕 欢迎！转行不孤单，这里有人走过你正在走的路';
-    content.innerHTML='<div class="onboarding-content-step"><h3>'+welcome+'</h3><p>我们为你准备了专属的入门路径</p><p style="font-size:40px;">🚀</p></div>';
-    nextBtn.textContent='下一步 →';
-  }else if(_onboardingStep===2){
-    content.innerHTML='<div class="onboarding-content-step"><h3>📖 入门必读</h3><p>根据你的身份推荐以下文章</p><div class="ob-list">'+onboardingArticles.map(function(a,i){return '<div class="ob-item'+(i<3?' selected':'')+'" onclick="this.classList.toggle(\'selected\')">'+a.title+' <small>'+a.tag+'</small></div>';}).join('')+'</div></div>';
-    nextBtn.textContent='下一步 →';
-  }else if(_onboardingStep===3){
-    content.innerHTML='<div class="onboarding-content-step"><h3>👥 推荐关注</h3><p>这些行业前辈值得认识</p><div class="ob-list">'+onboardingMentors.map(function(m,i){return '<div class="ob-item'+(i<3?' selected':'')+'" onclick="this.classList.toggle(\'selected\')"><b>'+m.name+'</b> · '+m.role+'<br><small>'+m.desc+'</small></div>';}).join('')+'</div></div>';
-    nextBtn.textContent='下一步 →';
-  }else if(_onboardingStep===4){
-    content.innerHTML='<div class="onboarding-content-step"><h3>💬 加入讨论</h3><p>热门话题等你参与</p><div class="ob-list"><div class="ob-item selected"><b>#新人报道</b><br><small>介绍一下你自己，让大家认识你</small></div><div class="ob-item"><b>#入行经验</b><br><small>过来人的经验分享</small></div><div class="ob-item"><b>#避坑指南</b><br><small>新人最容易踩的坑</small></div></div></div>';
-    nextBtn.textContent='开始探索 🎉';
-  }else if(_onboardingStep===5){
-    completeOnboarding();
-  }
-  track('user_onboarding_view',{user_role:myProfile.role,step:_onboardingStep,completed:false});
-}
-function completeOnboarding(){sb.from("onboarding_status").upsert({username:myProfile.name,step:5,followed_users:_onboardingData.followed,articles_read:_onboardingData.articlesRead,completed:true}).then(function(){});
-  var selectedArticles=document.querySelectorAll('#onboardingContent .ob-item.selected');
-  _onboardingData.articlesRead=Array.from(selectedArticles).map(function(el){return el.textContent.trim().split(' ')[0];});
-  _onboardingData.followed=selectedArticles.length;
-  var obEl=document.getElementById('onboardingOverlay');if(obEl)obEl.classList.remove('show');
-  addXP(100,'完成新手引导');
-  track('user_onboarding_complete',{followed_count:_onboardingData.followed,articles_read:_onboardingData.articlesRead.length});
-  // Save completion status
-  var ob=JSON.parse(localStorage.getItem('creatorhub_onboarding')||'{}');
-  ob[currentUser]={completed:true,completedAt:Date.now()};
-  sb.from("onboarding_status").upsert({username:myProfile.name,step:step,followed_users:data.followed,articles_read:data.articlesRead,completed:step>=5}).then(function(){});
-localStorage.setItem('creatorhub_onboarding',JSON.stringify(ob));
-  showToast('🎉 欢迎入圈！+100XP');
-}
+function showOnboarding(){_onboardingStep=1;_onboardingData={platforms:[],mentors:[]};var el=document.getElementById('onboardingOverlay');if(el){el.classList.add('show');el.style.display='flex';renderOnboardingStep();}}
+function skipOnboarding(){var el=document.getElementById('onboardingOverlay');if(el){el.classList.remove('show');el.style.display='none';}localStorage.setItem('creatorhub_onboarding_'+currentUser,'done');sb.from('onboarding_status').upsert({username:myProfile.name,step:0,completed:true}).then(function(){});}
+async function nextOnboardingStep(){if(_onboardingStep===1){var selected=document.querySelectorAll('.ob-platform-chip.selected');_onboardingData.platforms=Array.from(selected).map(function(el){return el.dataset.pid;});if(_onboardingData.platforms.length>0){myProfile.platforms=_onboardingData.platforms;sb.from('profiles').update({platforms:_onboardingData.platforms}).eq('username',currentUser).then(function(){});} _onboardingStep=2;renderOnboardingStep();return;}if(_onboardingStep===2){var mentors=document.querySelectorAll('.ob-mentor-chip.selected');_onboardingData.mentors=Array.from(mentors).map(function(el){return el.dataset.mname;});_onboardingData.mentors.forEach(function(mname){if(mname!==currentUser){sb.from('friends').insert({username:currentUser,friend_name:mname}).then(function(){});sb.from('friends').insert({username:mname,friend_name:currentUser}).then(function(){});if(myFriends.indexOf(mname)===-1)myFriends.push(mname);}});_onboardingStep=3;renderOnboardingStep();return;}if(_onboardingStep===3){await completeOnboarding();}}
+function renderOnboardingStep(){var bar=document.getElementById('onboardingBar');if(bar)bar.style.width=(_onboardingStep/3*100)+'%';var content=document.getElementById('onboardingContent');var nextBtn=document.getElementById('onboardingNextBtn');if(!content||!nextBtn)return;if(_onboardingStep===1){content.innerHTML='<div class="onboarding-content-step"><h3>👋 欢迎来到 CreatorHub！</h3><p>选择你创作的平台，我们会为你推荐相关内容</p><div class="platform-chips ob-chip-grid">'+PLATFORM_OPTIONS.slice(0,7).map(function(p){return '<button type="button" class="ob-platform-chip" data-pid="'+p.id+'" onclick="this.classList.toggle(\'selected\')">'+p.name+'</button>';}).join('')+'</div></div>';nextBtn.textContent='下一步 →';}else if(_onboardingStep===2){content.innerHTML='<div class="onboarding-content-step"><h3>👥 关注推荐前辈</h3><p>这些创作者值得关注，选择一个或多个</p><div id="mentorList" class="ob-list">'+onboardingMentors.map(function(m){return '<button type="button" class="ob-mentor-chip" data-mname="'+escapeHtml(m.name)+'" onclick="this.classList.toggle(\'selected\')"><b>'+escapeHtml(m.name)+'</b> · '+escapeHtml(m.role)+'<br><small>'+escapeHtml(m.desc)+'</small></button>';}).join('')+'</div></div>';nextBtn.textContent='完成 →';}else if(_onboardingStep===3){content.innerHTML='<div class="onboarding-content-step"><h3>✨ 发布第一条帖子</h3><p>介绍一下自己，让大家认识你</p><div style="text-align:left;margin:12px 0;"><div class="form-row"><label>标题</label><input id="obPostTitle" value="新人报到！我是'+escapeHtml(currentUser)+'" /></div><div class="form-row"><label>内容</label><textarea id="obPostContent" rows="3">大家好，我是'+escapeHtml(currentUser)+'，刚刚加入 CreatorHub。希望能在这里认识更多志同道合的创作者！</textarea></div></div></div>';nextBtn.textContent='🚀 开始探索';}track('user_onboarding_view',{user_role:myProfile.role,step:_onboardingStep,completed:false});}
+async function completeOnboarding(){var title=document.getElementById('obPostTitle')?document.getElementById('obPostTitle').value.trim():'';var content=document.getElementById('obPostContent')?document.getElementById('obPostContent').value.trim():'';if(title&&content)createPost(title,'newbie',content,'all');await sb.from('onboarding_status').upsert({username:myProfile.name,step:3,followed_users:_onboardingData.mentors,articles_read:_onboardingData.platforms,completed:true});localStorage.setItem('creatorhub_onboarding_'+currentUser,'done');var obEl=document.getElementById('onboardingOverlay');if(obEl){obEl.classList.remove('show');obEl.style.display='none';}showToast('欢迎加入 CreatorHub！','success');addXP(50,'完成新手引导');track('user_onboarding_complete',{followed_count:_onboardingData.mentors.length,platforms_count:_onboardingData.platforms.length});renderFriendsList();renderProfile();}
 
 // ========================================
 // INIT
