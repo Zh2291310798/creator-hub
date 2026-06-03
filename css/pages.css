@@ -223,6 +223,35 @@ input, textarea, select { font: inherit; }
   font-size: 11px;
   white-space: nowrap;
 }
+.star-row {
+  display: flex;
+  gap: 4px;
+}
+.star {
+  min-width: 30px;
+  padding: 0;
+  color: var(--orange);
+  font-size: 26px;
+  line-height: 1;
+}
+.star.selected {
+  color: var(--red);
+}
+.review-summary h3 {
+  margin: 0 0 10px;
+  font-family: var(--font-title);
+}
+.review-item {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--muted);
+}
+.review-item:last-child {
+  border-bottom: 0;
+}
+.review-item p {
+  margin: 3px 0 0;
+  color: rgba(45,45,45,.68);
+}
 .tab-badge {
   display: inline-flex;
   place-items: center;
