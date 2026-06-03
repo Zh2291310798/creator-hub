@@ -1,7 +1,6 @@
 // ========================================
 // TRACKING — event logging (MVP: localStorage)
 // ========================================
-function getSessionId(){var t=sessionStorage.getItem("_sid");if(!t){t="s"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);sessionStorage.setItem("_sid",t)}return t}
 function track(e,p){try{p=p||{};var a=JSON.parse(localStorage.getItem("creatorhub_events")||"[]");a.push({event:e,props:p,user:localStorage.getItem("creatorhub_session")||"anonymous",timestamp:Date.now(),session_id:getSessionId()});if(a.length>1000)a.splice(0,a.length-1000);localStorage.setItem("creatorhub_events",JSON.stringify(a))}catch(_){}}
 
 // ========================================
@@ -163,8 +162,6 @@ async function doLogout(){
 
 // ========================================
 
-function emoFor(t){var m={'社区评论':'💬','对接':'🤝','本地':'📍','招募':'💼','好友':'👥','聊天':'💬','系统':'🔔'};return m[t]||'💬';}
-function actFor(t){var m={'社区评论':'community','对接':'match','本地':'local','招募':'recruit','好友':'friends','聊天':'chat'};return m[t]||'';}
 // DATA LAYER
 // ========================================
 
@@ -172,23 +169,6 @@ async function loadNotifications(){
   if(!currentUser)return[];
   var _n=await sb.from('notifications').select('*').eq('username',currentUser).order('created_at',{ascending:false}).limit(50);
   return _n.data||[];
-}
-
-function normalizePost(p){
-  return {
-    id:p.id,
-    title:p.title,
-    category:p.category,
-    categoryLabel:p.category_label||'其他',
-    maker:p.author || p.maker,
-    avatar:p.author_avatar || p.avatar,
-    time:fmtTime(p.created_at),
-    desc:p.content||p.desc,
-    platform:p.platform||'all',
-    likes:p.likes||0,
-    comments:p.comment_count||0,
-    tags:p.tags
-  };
 }
 
 async function saveXP(amount,reason){
@@ -306,15 +286,6 @@ var avatarGradients = [
 var avatarEmojis = ['🐱','🐶','🦊','🐼','🐨','🐰','🦁','🐸','🐵','🐯','🐮','🐷','🐭','🐹','🐻','🦄','🐙','🦋','🐞','🐝'];
 var myAvatarChoice = 'gradient'; // 'gradient' | emoji index | custom gradient index
 
-function avatarGradient(name) {
-  var hash = 0;
-  for (var i=0;i<name.length;i++) { hash = name.charCodeAt(i) + ((hash<<5)-hash); }
-  var idx = Math.abs(hash) % avatarGradients.length;
-  return 'linear-gradient(135deg,' + avatarGradients[idx][0] + ',' + avatarGradients[idx][1] + ')';
-}
-function avatarStyle(name) {
-  return 'background:' + avatarGradient(name) + ';color:#fff;font-weight:700;';
-}
 function getAvatarHTML(userName) {
   if (myAvatarChoice === 'gradient') {
     return '<span class="avatar" style="'+avatarStyle(userName)+'">'+userName.slice(0,1)+'</span>';
@@ -785,12 +756,7 @@ function handleImageUpload(e) {
 // ========================================
 // UTILS
 // ========================================
-function escapeHtml(s){return String(s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];});}
 function safeArray(v){return Array.isArray(v)?v:[];}
-function fmtTime(t){if(!t)return '刚刚';var d=new Date(t);return d.toLocaleDateString('zh-CN',{month:'numeric',day:'numeric'})+' '+d.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'});}
-function randTilt(i){return [-0.5,0.3,-0.3,0.4,-0.4,0.2][i%6]+"deg";}
-function randTape(i){return [-1.5,1,-1,1.5,-0.5,2][i%6]+"deg";}
-function platformTagHtml(p){var m={xhs:["小红书","xhs"],douyin:["抖音","douyin"],kuaishou:["快手","kuaishou"],bilibili:["B站","bilibili"],wechat:["视频号","wechat"],weibo:["微博","weibo"],youtube:["YouTube","youtube"],tiktok:["TikTok","tiktok"],instagram:["Instagram","instagram"],taobao:["淘宝","taobao"],pdd:["拼多多","pdd"],zhihu:["知乎","zhihu"],dewu:["得物","dewu"],xigua:["西瓜视频","xigua"],all:["全平台","all"]};var x=m[p]||["全平台","all"];return '<span class="platform-tag '+x[1]+'">'+x[0]+"</span>";}
 function skeletonCards(n){var out='';for(var i=0;i<n;i++)out+='<div class="skeleton"></div>';return out;}
 function showLoadingSkeletons(){var p=document.getElementById('postGrid');if(p&&!p.children.length)p.innerHTML=skeletonCards(3);var r=document.getElementById('recruitGrid');if(r&&!r.children.length)r.innerHTML=skeletonCards(3);var f=document.getElementById('friendsList');if(f&&!f.children.length)f.innerHTML=skeletonCards(3);}
 var _lastLoadError=0;
@@ -825,7 +791,6 @@ async function submitReview(dealId,reviewee,role){var ratings={};var dimKeys=rol
 function ensureProfileReviewsMount(){var el=document.getElementById('profileReviews');if(el)return el;var home=document.getElementById('profileHome');if(!home)return null;var firstSection=home.querySelector('.profile-section');el=document.createElement('div');el.id='profileReviews';if(firstSection)home.insertBefore(el,firstSection);else home.appendChild(el);return el;}
 function renderProfileReviews(){var mount=ensureProfileReviewsMount();if(!mount||!currentUser)return;mount.innerHTML='<div class="card profile-section review-summary"><h3>⭐ 合作评价</h3><p class="hint">正在加载最近评价...</p></div>';sb.from('reviews').select('*').eq('reviewee',currentUser).order('created_at',{ascending:false}).limit(10).then(function(r){if(r.error){mount.innerHTML='<div class="card profile-section review-summary"><h3>⭐ 合作评价</h3><p class="hint">评价加载失败，请稍后重试</p></div>';showLoadError(r.error);return;}var reviews=r.data||[];if(!reviews.length){mount.innerHTML='<div class="card profile-section review-summary"><h3>⭐ 合作评价</h3><p class="hint">还没有合作评价，完成一次对接后就会出现在这里</p></div>';return;}var avg=reviews.reduce(function(sum,rev){var vals=Object.values(rev.ratings||{});if(!vals.length)return sum;return sum+vals.reduce(function(a,b){return a+Number(b||0);},0)/vals.length;},0)/reviews.length;mount.innerHTML='<div class="card profile-section review-summary"><h3>⭐ '+avg.toFixed(1)+' ('+reviews.length+'次合作)</h3>'+reviews.slice(0,3).map(function(rev){return '<div class="review-item"><b>'+escapeHtml(rev.reviewer)+'</b><p>'+escapeHtml(rev.comment||'（无文字评价）')+'</p></div>';}).join('')+'</div>';});}
 function captureInviteCode(){try{var code=new URLSearchParams(window.location.search).get('invite');if(code)sessionStorage.setItem('_invite_code',code);}catch(_){}}
-function generateInviteCode(){var code='';var chars='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';for(var i=0;i<6;i++)code+=chars[Math.floor(Math.random()*chars.length)];return code;}
 async function showInviteDialog(){if(!currentUser){showToast('请先登录','warn');return;}var existing=await sb.from('invitation_codes').select('code').eq('inviter_username',currentUser).is('used_by',null).limit(1);var code=existing.data&&existing.data.length?existing.data[0].code:null;if(!code){code=generateInviteCode();var ins=await sb.from('invitation_codes').insert({code:code,inviter_username:currentUser});if(ins.error){code=generateInviteCode();await sb.from('invitation_codes').insert({code:code,inviter_username:currentUser});}}var base=location.origin&&location.origin!=='null'?location.origin+location.pathname:'https://creatorhub.vercel.app/';var link=base.replace(/\/index\.html$/,'/')+'?invite='+encodeURIComponent(code);showModal({title:'邀请朋友入驻',body:'<p style="text-align:center;font-size:15px;">分享这个链接给你的朋友</p><div class="invite-link-box">'+escapeHtml(link)+'</div><p style="font-size:12px;color:rgba(45,45,45,.5);text-align:center;">邀请奖励：注册 +50XP · 发帖 +30XP · 对接 +100XP</p>',actions:[{text:'📋 复制链接',cls:'btn',onclick:'copyInviteLink(decodeURIComponent(\''+encodeURIComponent(link)+'\'))'}]});}
 function copyInviteLink(link){if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(link).then(function(){showToast('链接已复制！','success');closeModal();}).catch(function(){showToast('复制失败，请手动复制','error');});}else{showToast('复制失败，请手动复制','error');}}
 async function addXPForUser(username,amount,reason){await sb.from('xp_records').insert({username:username,amount:amount,reason:reason});var p=await sb.from('profiles').select('xp,level').eq('username',username).single();if(p.data){var newXP=(p.data.xp||0)+amount;var newLevel=Math.floor(newXP/100)+1;await sb.from('profiles').update({xp:newXP,level:newLevel}).eq('username',username);}}
