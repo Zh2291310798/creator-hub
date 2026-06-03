@@ -2291,16 +2291,18 @@ function setupRealtime(){
     .on("postgres_changes",{event:"INSERT",schema:"public",table:"world_messages"},
       function(p){renderWorldChat();})
     .subscribe();
+  sb.channel("comments-live").on("postgres_changes",{event:"DELETE",schema:"public",table:"comments"},function(p){if(p.old){var pid=p.old.post_id;if(postComments[pid]){var ci=postComments[pid].findIndex(function(x){return x.author===p.old.author&&x.text===p.old.content;});if(ci>=0){postComments[pid].splice(ci,1);var pp=posts.find(function(x){return x.id===pid;});if(pp)pp.comments=postComments[pid].length;renderPosts();}}}}).subscribe();
   sb.channel("notif-"+currentUser)
     .on("postgres_changes",{event:"INSERT",schema:"public",table:"notifications",filter:"username=eq."+currentUser},
       function(p){if(p.new){saveNotify(emoFor(p.new.type),p.new.from_user+' → '+p.new.content.slice(0,30),p.new.content,actFor(p.new.type));}updateNotifyBadge();})
     .subscribe();
+  sb.channel("recruits-live").on("postgres_changes",{event:"INSERT",schema:"public",table:"recruits"},function(p){if(p.new){if(!recruits.find(function(x){return x.id===p.new.id;})){recruits.unshift(p.new);renderRecruits();}}}).subscribe();
   sb.channel("posts-live")
     .on("postgres_changes",{event:"INSERT",schema:"public",table:"posts"},
       function(p){if(p.new){posts.unshift({id:p.new.id,title:p.new.title,category:p.new.category,categoryLabel:p.new.category_label||"其他",maker:p.new.author,avatar:p.new.author_avatar,time:"刚刚",desc:p.new.content,platform:p.new.platform||"all",likes:p.new.likes||0,comments:p.new.comment_count||0});renderPosts();}})
     		.on("postgres_changes",{event:"UPDATE",schema:"public",table:"posts"},
 			function(p){if(p.new){var ep=posts.find(function(x){return x.id===p.new.id;});if(ep){ep.likes=p.new.likes||0;ep.comments=p.new.comment_count||0;renderPosts();}}})
-		.subscribe();
+		.on("postgres_changes",{event:"DELETE",schema:"public",table:"posts"},function(p){if(p.old){var idx=posts.findIndex(function(x){return x.id===p.old.id;});if(idx>=0){posts.splice(idx,1);renderPosts();}}}).subscribe();
   console.log("Realtime channels subscribed for "+currentUser);
   window._pollTimer=setInterval(pollUpdates,2000);
 }
@@ -2318,7 +2320,7 @@ function pollUpdates(){
   });
   sb.from("comments").select("*").gt("created_at",new Date(parseInt(since)).toISOString()).then(function(r){if(r.data&&r.data.length>0){r.data.forEach(function(c){if(!postComments[c.post_id])postComments[c.post_id]=[];if(!postComments[c.post_id].find(function(x){return x.author===c.author&&x.text===c.content;})){postComments[c.post_id].push({author:c.author,text:c.content,time:fmtTime(c.created_at)});var _pp=posts.find(function(x){return x.id===c.post_id;});if(_pp)_pp.comments=postComments[c.post_id].length;}});if(currentPostId&&postComments[currentPostId]){var _ov=document.getElementById("postFullview");if(_ov){var _ci=_ov.querySelector(".post-full-comments h3");if(_ci)_ci.textContent="💬 评论 ("+postComments[currentPostId].length+")";}}};renderPosts();});
   var _pids=posts.map(function(x){return x.id;});if(_pids.length>0){sb.from("posts").select("id,likes,comment_count").in("id",_pids).then(function(r){if(r.data&&r.data.length>0){r.data.forEach(function(sp){var lp=posts.find(function(x){return x.id===sp.id;});if(lp&&lp.likes!==sp.likes){lp.likes=sp.likes||0;}});renderPosts();}});}
-  sessionStorage.setItem("_poll_since",Date.now()-5000);
+  sb.from("recruits").select("*").gt("created_at",new Date(parseInt(since)).toISOString()).then(function(r){if(r.data&&r.data.length>0){r.data.forEach(function(rr){if(!recruits.find(function(x){return x.id===rr.id;})){recruits.unshift(rr);}});renderRecruits();}});sb.from("match_demands").select("*").gt("created_at",new Date(parseInt(since)).toISOString()).then(function(r){if(r.data&&r.data.length>0){r.data.forEach(function(md){var arr=md.role==="brand"?brandSeekingData:creatorSeekingData;if(!arr.find(function(x){return x.id===md.id;})){arr.unshift(md);}});renderMatch();}});sb.from("local_demands").select("*").gt("created_at",new Date(parseInt(since)).toISOString()).then(function(r){if(r.data&&r.data.length>0){r.data.forEach(function(ld){if(!localDemands.find(function(x){return x.id===ld.id;})){localDemands.unshift(ld);}});renderLocalMatch();}});sessionStorage.setItem("_poll_since",Date.now()-5000);
 }
 
 // ========================================
@@ -2439,8 +2441,7 @@ function renderAvatarPicker() {
 }
 function saveAvatarChoice() {
   if (currentUser) {
-    userDB[currentUser].avatarChoice = myAvatarChoice;
-    sb.from("profiles").update({username:myProfile.name,role:myProfile.role,role_label:myProfile.roleLabel,city:myProfile.city,work_status:myProfile.workStatus,bio:myProfile.bio}).eq("username",currentUser).then(function(){});
+    sb.from("profiles").update({username:myProfile.name,role:myProfile.role,role_label:myProfile.roleLabel,city:myProfile.city||"",work_status:myProfile.workStatus||"",bio:myProfile.bio||"",avatar_choice:myAvatarChoice}).eq("username",myProfile.name).then(function(r){if(r.error)console.error("Avatar save failed:",r.error);});
   }
 }
 
@@ -2781,10 +2782,10 @@ function publishMatch(){
   };
   if(role==='brand'){
     item.brand=myProfile.name;item.avatar=myProfile.name.slice(0,1);item.avatarBg='';
-    brandSeekingData.unshift(item);
+    brandSeekingData.unshift(item);sb.from("match_demands").insert({id:item.id,poster:item.poster,role:item.role,platforms:item.platforms,budget:item.budget,description:item.description}).then(function(r){if(r.error)console.error("Match insert failed:",r.error);});
   }else{
     item.creator=myProfile.name;item.avatar=myProfile.name.slice(0,1);item.avatarBg='';
-    creatorSeekingData.unshift(item);
+    creatorSeekingData.unshift(item);sb.from("match_demands").insert({id:item.id,poster:item.poster,role:item.role,platforms:item.platforms,budget:item.budget,description:item.description}).then(function(r){if(r.error)console.error("Match insert failed:",r.error);});
   }
   track('match_demand_publish',{demand_type:role,platform:platforms[0]});
   renderMatch();
@@ -3478,7 +3479,7 @@ function deleteMatch(id, type) {
   if (!confirm('确定删除这条对接需求吗？')) return;
   var arr = type === 'brand' ? brandSeekingData : creatorSeekingData;
   var idx = arr.findIndex(function(x){ return x.id === id; });
-  if (idx >= 0) { arr.splice(idx, 1); renderMatch(); showToast('已删除'); }
+  if (idx >= 0) { var _dm=arr[idx]; arr.splice(idx, 1); if(_dm)sb.from("match_demands").delete().eq("id",_dm.id).then(function(r){if(r.error)console.error("Match delete failed:",r.error);}); renderMatch(); showToast('已删除'); }
 }
 
 // ========================================
@@ -3550,7 +3551,7 @@ document.getElementById('localFilters').addEventListener('click',function(e){
 function deleteLocalDemand(did) {
   if (!confirm('确定删除这条本地需求吗？')) return;
   var idx = localDemands.findIndex(function(x) { return x.id === did; });
-  if (idx >= 0) { localDemands.splice(idx, 1); localStorage.setItem('creatorhub_local_demands', JSON.stringify(localDemands)); renderLocalMatch(); showToast('已删除'); }
+  if (idx >= 0) { localDemands.splice(idx, 1); localStorage.setItem('creatorhub_local_demands', JSON.stringify(localDemands));sb.from("local_demands").insert({id:newDemand.id,poster:newDemand.poster,business_name:newDemand.businessName||"",city:newDemand.city||"",district:newDemand.district||"",category:newDemand.category||"",title:newDemand.title,description:newDemand.desc,budget:newDemand.budget||"",requirements:newDemand.requirements||"",contact:newDemand.contact||"",status:"open"}).then(function(r){if(r.error)console.error("Local demand insert failed:",r.error);}); renderLocalMatch(); showToast('已删除'); }
 }
 
 // ========================================
@@ -3646,6 +3647,7 @@ function closeDrawer() {
 // ========================================
 
 // All users in the system (discoverable)
+var userDB = {};
 const allUsers = [
   { id: "u1", name: "美妆达人小A", avatar: "A", avatarBg: "xhs-bg", role: "creator", roleLabel: "创作者/达人", online: true,
     desc: "小红书美妆创作者，擅长护肤测评和妆容教程，粉丝12w+。", platforms: ["xhs"], tags: ["美妆","护肤","测评"], followers: "12.8w" },
@@ -3853,7 +3855,7 @@ function sendFriendRequest(uid) {
   if (myFriends.includes(uid)) { showToast('你们已经是好友了！'); return; }
   if (friendRequests.some(r => r.from === uid)) { showToast('已经发送过好友请求了'); return; }
   const user = allUsers.find(u => u.id === uid);
-  friendRequests.push({ from: uid, message: '想加你为好友，一起交流！', time: '刚刚' });
+  friendRequests.push({ from: uid, message: '想加你为好友，一起交流！', time: '刚刚' });sb.from("friend_requests").insert({from_user:myProfile.name,to_user:uid,status:"pending"}).then(function(r){if(r.error)console.error("Friend request failed:",r.error);});
   deliverNotification(uid,'👥 好友请求：想加你为好友，一起交流！','好友请求');
   updateFriendBadge();
   renderFriendsList();
@@ -3865,7 +3867,7 @@ function acceptRequest(uid) {
   const idx = friendRequests.findIndex(r => r.from === uid);
   const user = allUsers.find(u => u.id === uid);
   if (idx >= 0) friendRequests.splice(idx, 1);
-  if (!myFriends.includes(uid)) myFriends.push(uid);
+  if (!myFriends.includes(uid)) myFriends.push(uid);sb.from("friends").insert({username:myProfile.name,friend_name:uid}).then(function(r){if(r.error)console.error("Friend add failed:",r.error);});
   track('friend_add',{target_user:uid,source:_currentTab});
   // Also add to chat contacts if not already there
   if (!contacts.find(c => c.id === 'f_' + uid)) {
@@ -4063,15 +4065,8 @@ function saveProfile() {
   document.getElementById('saveFeedback').style.color = 'var(--sage)';
   setTimeout(() => { document.getElementById('saveFeedback').textContent = ''; }, 2000);
 
-  // Sync to userDB
-  if (currentUser && userDB[currentUser]) {
-    userDB[currentUser].name = myProfile.name;
-    userDB[currentUser].role = myProfile.role;
-    userDB[currentUser].roleLabel = myProfile.roleLabel;
-    userDB[currentUser].city = myProfile.city;
-    userDB[currentUser].workStatus = myProfile.workStatus;
-    localStorage.setItem('creatorhub_users', JSON.stringify(userDB));
-  }
+  // Sync to Supabase
+  sb.from("profiles").update({username:myProfile.name,role:myProfile.role,role_label:myProfile.roleLabel,city:myProfile.city||"",work_status:myProfile.workStatus||"",bio:myProfile.bio||"",avatar_choice:myAvatarChoice}).eq("username",myProfile.name).then(function(r){if(r.error)console.error("Profile update failed:",r.error);});
   renderProfile();
   showToast('个人资料已更新');
 }
@@ -4154,26 +4149,24 @@ function isLiked(postId){var liked=JSON.parse(localStorage.getItem("creatorhub_l
 function toggleLike(postId){var p=posts.find(function(x){return x.id===postId;});if(!p)return;var liked=JSON.parse(localStorage.getItem("creatorhub_liked_"+currentUser)||"[]");var idx=liked.indexOf(postId);if(idx>=0){liked.splice(idx,1);p.likes=Math.max(0,(p.likes||0)-1);sb.from("posts").update({likes:p.likes}).eq("id",postId).then(function(r){if(r.error)console.error("Unlike failed:",r.error);});track("post_unlike",{post_id:postId});var lb=document.getElementById("likeBtn");if(lb)lb.textContent="👍 点赞 ("+p.likes+")";}else{liked.push(postId);p.likes=(p.likes||0)+1;sb.from("posts").update({likes:p.likes}).eq("id",postId).then(function(r){if(r.error)console.error("Like failed:",r.error);});if(p.maker&&p.maker!==myProfile.name){deliverNotification(p.maker,"❤️ 赞了你的帖子：「"+p.title.slice(0,30)+"」","点赞");}track("post_like",{post_id:postId});addXP(5,"点赞");var lb=document.getElementById("likeBtn");if(lb)lb.textContent="👍 已赞 ("+p.likes+")";}localStorage.setItem("creatorhub_liked_"+currentUser,JSON.stringify(liked));renderPosts();}
 function likePost(postId){toggleLike(postId);}
 
-function deleteComment(postId, commentIdx, author, cmtText) {
-  if (author !== myProfile.name) { showToast("只能删除自己的评论"); return; }
-  if (!confirm("确定删除这条评论吗？")) return;
-  // Remove from local
-  if (postComments[postId]) {
-    postComments[postId].splice(commentIdx, 1);
-    var p = posts.find(function(x){ return x.id === postId; });
-    if (p) p.comments = postComments[postId].length;
-  }
-  // Remove from Supabase
-  sb.from("comments").delete().eq("post_id", postId).eq("author", author).eq("content", cmtText).then(function(r){
-    if(r.error) console.error("Comment delete failed:", r.error);
-    else sb.from("posts").update({comment_count: (postComments[postId]||[]).length}).eq("id", postId).then(function(){});
+function deleteComment(postId, commentIdx) {
+  var _dc=postComments[postId];
+  if(!_dc||!_dc[commentIdx])return;
+  var author=_dc[commentIdx].author;
+  var cmtText=_dc[commentIdx].text;
+  if (author !== myProfile.name) { showToast(String.fromCharCode(21482,33021,21024,38500,33258,24049,30340,35780,35770)); return; }
+  if (!confirm(String.fromCharCode(30830,23450,21024,38500,36825,26465,35780,35770,21527,65311))) return;
+  _dc.splice(commentIdx, 1);
+  var p = posts.find(function(x){ return x.id === postId; });
+  if (p) p.comments = _dc.length;
+  sb.from(String.fromCharCode(99,111,109,109,101,110,116,115)).delete().eq(String.fromCharCode(112,111,115,116,95,105,100), postId).eq(String.fromCharCode(97,117,116,104,111,114), author).eq(String.fromCharCode(99,111,110,116,101,110,116), cmtText).then(function(r){
+    if(r.error) console.error(String.fromCharCode(67,111,109,109,101,110,116,32,100,101,108,101,116,101,32,102,97,105,108,101,100,58), r.error);
+    else sb.from(String.fromCharCode(112,111,115,116,115)).update({comment_count: _dc.length}).eq(String.fromCharCode(105,100), postId).then(function(){});
   });
-  // Refresh detail if open
   if (currentPostId === postId) openPostDetail(postId);
   renderPosts();
-  showToast("评论已删除");
-}
-function addComment() {
+  showToast(String.fromCharCode(35780,35770,24050,21024,38500));
+}function addComment() {
   var input=document.getElementById('commentInput');
   if(!input||!input.value.trim()||!currentPostId)return;
   var text=input.value.trim();
@@ -4261,7 +4254,7 @@ function completeOnboarding(){sb.from("onboarding_status").upsert({username:myPr
   // Save completion status
   var ob=JSON.parse(localStorage.getItem('creatorhub_onboarding')||'{}');
   ob[currentUser]={completed:true,completedAt:Date.now()};
-  sb.from("onboarding_status").upsert({username:myProfile.name,step:step,followed_users:data.followed,articles_read:data.articlesRead,completed:step>=5}).then(function(){});
+  
 localStorage.setItem('creatorhub_onboarding',JSON.stringify(ob));
   showToast('🎉 欢迎入圈！+100XP');
 }
