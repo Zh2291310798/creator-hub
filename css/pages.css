@@ -199,6 +199,30 @@ input, textarea, select { font: inherit; }
   transform: translate(3px, 3px);
   box-shadow: 0 0 0 0 var(--ink);
 }
+.connected-platform-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 8px 0;
+  padding: 8px 10px;
+  background: var(--white);
+  border: 2px solid var(--ink);
+  border-radius: var(--wobbly-sm);
+  box-shadow: var(--shadow-soft);
+  font-size: 14px;
+}
+.connected-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  padding: 1px 6px;
+  background: var(--sage);
+  color: #fff;
+  border-radius: 4px;
+  font-size: 11px;
+  white-space: nowrap;
+}
 .tab-badge {
   display: inline-flex;
   place-items: center;
@@ -1465,4 +1489,3 @@ input, textarea, select { font: inherit; }
   .home-features{grid-template-columns:1fr;}
   .home-stat-item .num{font-size:32px;}
 }
-

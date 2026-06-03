@@ -55,6 +55,7 @@ async function loadSession(user){
     myProfile.avatar=p.username.slice(0,1);
     myProfile.city=p.city||'';
     myProfile.workStatus=p.work_status||'';
+    myProfile.connectedPlatforms=safeArray(p.connected_platforms);
     if(p.avatar_choice)myAvatarChoice=p.avatar_choice;
     myLevel=p.level||1;myXP=p.xp||0;
   }
@@ -786,6 +787,27 @@ var _lastLoadError=0;
 function showLoadError(e){console.error(e);var now=Date.now();if(now-_lastLoadError>5000){_lastLoadError=now;showToast('加载失败，请刷新重试','error');}}
 function showToast(m,type){var t=document.getElementById("toast");var kind=type||(/失败|错误|未找到/.test(m)?"error":/请|注意/.test(m)?"warn":"success");var icon=kind==="error"?"❌":kind==="warn"?"⚠️":"✅";t.className="toast "+kind;t.textContent=icon+" "+m;t.classList.add("show");clearTimeout(t._t);t._t=setTimeout(function(){t.classList.remove("show");},2400);}
 
+function showModal(opts){var el=document.getElementById('genericModal');if(!el){el=document.createElement('div');el.id='genericModal';el.className='msg-dialog';el.onclick=function(e){if(e.target===el)closeModal();};document.body.appendChild(el);}var actions=(opts.actions||[]).map(function(a){return '<button class="'+(a.cls||'btn')+'" onclick="'+a.onclick+'">'+escapeHtml(a.text)+'</button>';}).join(' ');el.innerHTML='<div class="msg-dialog-card"><h3>'+escapeHtml(opts.title||'')+'</h3><div>'+opts.body+'</div><div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end;">'+actions+'<button class="btn secondary" onclick="closeModal()">取消</button></div></div>';el.style.display='flex';}
+function closeModal(){var el=document.getElementById('genericModal');if(el)el.style.display='none';}
+
+var PLATFORM_OPTIONS=[
+  {id:'xhs',name:'小红书',pattern:/xiaohongshu\.com|xhslink\.com/},
+  {id:'douyin',name:'抖音',pattern:/douyin\.com\/user/},
+  {id:'bilibili',name:'B站',pattern:/bilibili\.com\/space/},
+  {id:'kuaishou',name:'快手',pattern:/kuaishou\.com\/profile/},
+  {id:'weibo',name:'微博',pattern:/weibo\.com\/u/},
+  {id:'youtube',name:'YouTube',pattern:/youtube\.com\/@|youtube\.com\/channel/},
+  {id:'tiktok',name:'TikTok',pattern:/tiktok\.com\/@/},
+  {id:'wechat',name:'视频号',pattern:/channels\.weixin/}
+];
+function platformName(id){var opt=PLATFORM_OPTIONS.find(function(p){return p.id===id;});return opt?opt.name:id;}
+function showConnectPlatform(){var options=PLATFORM_OPTIONS.map(function(p){return '<option value="'+p.id+'">'+p.name+'</option>';}).join('');showModal({title:'连接平台账号',body:'<div class="form-row"><label>选择平台</label><select id="connectPlatform">'+options+'</select></div><div class="form-row"><label>主页链接</label><input id="connectUrl" placeholder="https://..." /></div><div class="form-row"><label>粉丝数</label><input id="connectFollowers" type="number" placeholder="如: 23000" /></div><p style="font-size:12px;color:rgba(45,45,45,.5);">输入你的平台公开主页链接，我们会校验格式</p><p style="font-size:12px;color:var(--sage);">✅ 数据仅作参考，品牌方可查看你的主页核实</p>',actions:[{text:'连接',cls:'btn',onclick:'doConnectPlatform()'}]});}
+function doConnectPlatform(){var platform=document.getElementById('connectPlatform').value;var url=document.getElementById('connectUrl').value.trim();var followers=parseInt(document.getElementById('connectFollowers').value)||0;if(!url){showToast('请输入主页链接','error');return;}var opt=PLATFORM_OPTIONS.find(function(p){return p.id===platform;});if(!opt.pattern.test(url)){showToast('链接格式不正确，请检查','error');return;}myProfile.connectedPlatforms=safeArray(myProfile.connectedPlatforms);var existing=myProfile.connectedPlatforms.findIndex(function(p){return p.platform===platform;});var entry={platform:platform,url:url,followers:followers,verified_at:new Date().toISOString()};if(existing>=0)myProfile.connectedPlatforms[existing]=entry;else myProfile.connectedPlatforms.push(entry);saveProfileField('connected_platforms',myProfile.connectedPlatforms);renderConnectedPlatforms();closeModal();showToast('平台已连接！','success');}
+function renderConnectedPlatforms(){var list=document.getElementById('connectedPlatformsList');if(!list)return;var platforms=safeArray(myProfile.connectedPlatforms);if(!platforms.length){list.innerHTML='<p style="color:rgba(45,45,45,.4);font-size:14px;">还没有连接任何平台</p>';return;}list.innerHTML=platforms.map(function(p){var fans=p.followers?(p.followers>=10000?(p.followers/10000).toFixed(1)+'万粉':p.followers+'粉'):'已连接';return '<div class="connected-platform-chip"><span>'+escapeHtml(platformName(p.platform))+' · '+escapeHtml(fans)+' ✅</span><button class="mini-btn reject" data-disconnect-platform="'+escapeHtml(p.platform)+'">✕</button></div>';}).join('');}
+document.addEventListener('click',function(e){var btn=e.target.closest('[data-disconnect-platform]');if(btn)disconnectPlatform(btn.dataset.disconnectPlatform);});
+function disconnectPlatform(platform){myProfile.connectedPlatforms=safeArray(myProfile.connectedPlatforms).filter(function(p){return p.platform!==platform;});saveProfileField('connected_platforms',myProfile.connectedPlatforms);renderConnectedPlatforms();showToast('已断开连接','success');}
+function saveProfileField(field,value){var update={};update[field]=value;sb.from('profiles').update(update).eq('username',currentUser).then(function(r){if(r.error)showLoadError(r.error);});}
+
 // ========================================
 function initHomepage() {
   var bg = document.getElementById("floatingBg");
@@ -1412,7 +1434,10 @@ function renderMatch() {
     </article>
   `).join('');
 
-  document.getElementById('creatorSeeking').innerHTML = creatorSeekingData.map((c, i) => `
+  document.getElementById('creatorSeeking').innerHTML = creatorSeekingData.map((c, i) => {
+    var cps = c.creator===myProfile.name ? safeArray(myProfile.connectedPlatforms) : safeArray(c.connectedPlatforms);
+    var connectedBadge = cps.length ? '<span class="connected-badge">🏅'+cps.length+'平台已连接</span>' : '';
+    return `
     <article class="card" style="--tilt:${randTilt(i)};--tape:${randTape(i)}">
       <div class="card-top">
         <span class="card-status seeking">达人</span>
@@ -1425,14 +1450,15 @@ function renderMatch() {
       <div class="card-foot">
         <div class="maker">
           <span class="avatar ${escapeHtml(c.avatarBg)}">${escapeHtml(c.avatar)}</span>
-          <span>${escapeHtml(c.creator)}</span>
+          <span>${escapeHtml(c.creator)}${connectedBadge}</span>
         </div>
         <button class="btn" data-match-name="${escapeHtml(c.creator)}" data-match-role="达人">联系TA</button>
         <button class="mini-btn-link" data-friend-name="${escapeHtml(c.creator)}" title="加好友">👥</button>
         ${c.creator === myProfile.name ? '<button class="mini-btn reject" data-delete-match-id="' + escapeHtml(c.id) + '" data-delete-match-type="creator" title="删除">🗑</button>' : ''}
       </div>
     </article>
-  `).join('');
+  `;
+  }).join('');
   track('match_view',{view_mode:matchFilter});
 }
 document.getElementById('matchColumns').addEventListener('click', function(e) {
@@ -1959,6 +1985,7 @@ const myProfile = {
   bio: "跨平台创作者，分享创作和运营经验。喜欢探索新平台和新玩法。",
   platforms: ["xhs", "douyin", "bilibili"],
   tags: ["创作", "运营", "探店"],
+  connectedPlatforms: [],
   city: "", workStatus: "",
   online: true
 };
@@ -1981,6 +2008,7 @@ function renderProfile() {
   document.getElementById('profileWorkStatus').textContent = myProfile.workStatus ? '💼 '+ (wsLabels[myProfile.workStatus]||myProfile.workStatus) : '';
   document.getElementById('profileWorkStatus').style.display = myProfile.workStatus ? '' : 'none';
   document.getElementById('profilePlatforms').innerHTML = myProfile.platforms.map(platformTagHtml).join('');
+  renderConnectedPlatforms();
 
   // Stats
   const myPostCount = posts.filter(p => p.maker === myProfile.name).length;
