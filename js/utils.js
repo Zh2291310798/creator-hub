@@ -98,6 +98,15 @@ function randTape(i) {
   return 'rotate(' + ((seed - 3) * 1.2).toFixed(1) + 'deg)';
 }
 
+function isLikedInMap(likesMap, postId) {
+  return !!(likesMap && likesMap[postId]);
+}
+
+function nextLikeState(currentLikes, liked) {
+  var likes = currentLikes || 0;
+  return liked ? { liked: false, likes: Math.max(0, likes - 1) } : { liked: true, likes: likes + 1 };
+}
+
 function emoFor(t) {
   var m = {
     '社区评论': '💬',

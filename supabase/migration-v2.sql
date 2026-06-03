@@ -102,6 +102,24 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql STABLE;
 
+CREATE TABLE IF NOT EXISTS post_likes (
+  id BIGSERIAL PRIMARY KEY,
+  post_id TEXT NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+  username TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(post_id, username)
+);
+
+ALTER TABLE post_likes ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "likes_select_auth" ON post_likes FOR SELECT USING (true);
+CREATE POLICY "likes_insert_auth" ON post_likes FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+CREATE POLICY "likes_delete_auth" ON post_likes FOR DELETE USING (auth.uid() IS NOT NULL);
+
+CREATE INDEX IF NOT EXISTS idx_post_likes ON post_likes(post_id, username);
+
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
 -- 判断是否可评价
 CREATE OR REPLACE FUNCTION can_review(p_reviewer TEXT, p_reviewee TEXT, p_deal_id TEXT)
 RETURNS BOOLEAN AS $$

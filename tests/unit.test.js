@@ -155,6 +155,22 @@ eval(utilsCode);
   summary('randTilt/randTape');
 })();
 
+(function() {
+  assertEqual(isLikedInMap({ p1: true }, 'p1'), true, 'isLiked: true map entry');
+  assertEqual(isLikedInMap({ p1: false }, 'p1'), false, 'isLiked: false map entry');
+  assertEqual(isLikedInMap({}, 'p1'), false, 'isLiked: missing entry');
+  assertEqual(isLikedInMap(null, 'p1'), false, 'isLiked: null map');
+  var liked = nextLikeState(2, false);
+  assertEqual(liked.liked, true, 'toggleLike: like sets liked');
+  assertEqual(liked.likes, 3, 'toggleLike: like increments');
+  var unliked = nextLikeState(2, true);
+  assertEqual(unliked.liked, false, 'toggleLike: unlike clears liked');
+  assertEqual(unliked.likes, 1, 'toggleLike: unlike decrements');
+  var floor = nextLikeState(0, true);
+  assertEqual(floor.likes, 0, 'toggleLike: unlike floors at zero');
+  summary('isLiked/toggleLike');
+})();
+
 console.log('\n=== Unit Test Results ===');
 console.log('Total: ' + totalPassed + '/' + (totalPassed + totalFailed) + ' assertions passed');
 if (totalFailed === 0) {

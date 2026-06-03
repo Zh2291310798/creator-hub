@@ -59,6 +59,8 @@ const sb=supabase.createClient(SB_URL,SB_KEY);
 // ========================================
 var currentUser=null;
 var myProfileId=null;
+var _myLikes={};
+var _likeLock={};
 
 // Supabase session -> local state
 async function loadSession(user){
@@ -243,7 +245,7 @@ function pollUpdates(){
     if((d.chat_msgs||[]).length>0){renderChatMessages();updateChatBadge();renderChatContacts();}
     (d.new_comments||[]).forEach(function(c){if(!postComments[c.post_id])postComments[c.post_id]=[];if(!postComments[c.post_id].find(function(x){return x.author===c.author&&x.text===c.content;}))postComments[c.post_id].push({author:c.author,text:c.content,time:formatTime(c.created_at)});});
     if((d.new_comments||[]).length>0)renderPosts("all");
-    if((d.likes_sync||[]).length>0){d.likes_sync.forEach(function(ls){var pp=posts.find(function(x){return x.id===ls.post_id;});if(pp)pp.likes=ls.likes;});renderPosts("all");}
+    if((d.likes_sync||[]).length>0){d.likes_sync.forEach(function(ls){if(_likeLock[ls.post_id]&&Date.now()-_likeLock[ls.post_id]<5000)return;var pp=posts.find(function(x){return x.id===ls.post_id;});if(pp)pp.likes=ls.likes;});renderPosts("all");}
     (d.new_recruits||[]).forEach(function(r){if(!recruits.find(function(x){return x.id===r.id;}))recruits.unshift(r);});
     if((d.new_recruits||[]).length>0)renderRecruits();
     (d.new_matches||[]).forEach(mergeMatchDemandRow);
@@ -283,6 +285,10 @@ async function loadAllData(){
     // Load posts
     var rp=await sb.from("posts").select("*").order("created_at",{ascending:false}).limit(100);
     if(rp.data&&rp.data.length>0){rp.data.forEach(function(p){if(!posts.find(function(x){return x.id===p.id;})){posts.push(normalizePost(p));}});}
+    // Load my likes
+    var rpl=await sb.from("post_likes").select("post_id").eq("username",currentUser);
+    _myLikes={};
+    if(rpl.data)rpl.data.forEach(function(l){_myLikes[l.post_id]=true;});
     // Load recruits
     var rr=await sb.from("recruits").select("*").order("created_at",{ascending:false}).limit(50);
     if(rr.data&&rr.data.length>0){rr.data.forEach(function(r){if(!recruits.find(function(x){return x.id===r.id;}))recruits.unshift(r);});}
@@ -1605,6 +1611,31 @@ function deleteLocalDemand(did) {
 // ========================================
 // COMMUNITY
 // ========================================
+function isLiked(postId){return isLikedInMap(_myLikes,postId);}
+function toggleLike(postId){
+  var p=posts.find(function(x){return x.id===postId;});
+  if(!p||!currentUser)return;
+  var wasLiked=isLiked(postId);
+  var next=nextLikeState(p.likes,wasLiked);
+  _myLikes[postId]=next.liked;
+  p.likes=next.likes;
+  _likeLock[postId]=Date.now();
+  if(wasLiked){
+    sb.from("post_likes").delete().eq("post_id",postId).eq("username",currentUser).then(function(){});
+  }else{
+    sb.from("post_likes").insert({post_id:postId,username:currentUser}).then(function(){});
+    if(p.maker&&p.maker!==currentUser&&p.maker!==myProfile.name&&p.maker!=="我"){
+      deliverNotification(p.maker,"❤️ 赞了你的帖子：「"+p.title.slice(0,30)+"」","点赞");
+    }
+    addXP(5,"点赞");
+  }
+  sb.from("posts").update({likes:p.likes,updated_at:new Date().toISOString()}).eq("id",postId).then(function(){});
+  renderPosts("all");
+  var likeBtn=document.getElementById("likeBtn");
+  if(likeBtn&&currentPostId===postId)likeBtn.textContent=(isLiked(postId)?"👍 已赞":"👍 点赞")+" ("+(p.likes||0)+")";
+}
+function likePost(postId){toggleLike(postId);}
+
 function createPost(titleArg,categoryArg,contentArg,platformArg) {
   const title = titleArg || document.getElementById('postTitle').value.trim();
   const content = contentArg || document.getElementById('postContent').value.trim();
@@ -2205,7 +2236,7 @@ function openPostDetail(postId) {
   });
   if(!cmts.length) h += '<p style="color:rgba(45,45,45,.4);">还没有评论，来说两句吧</p>';
   h += '</div>';
-  h += '<div class="post-full-input"><input type="text" id="commentInput" placeholder="写下你的评论...（Enter 发送）" /><button class="btn" onclick="addComment()">发送</button>';
+  h += '<div class="post-full-input"><input type="text" id="commentInput" placeholder="写下你的评论...（Enter 发送）" /><button class="btn" onclick="addComment()">发送</button><button id="likeBtn" class="btn" onclick="likePost(\''+escapeHtml(p.id)+'\')" style="margin-left:8px;">'+(isLiked(p.id)?'👍 已赞':'👍 点赞')+' ('+(p.likes||0)+')</button>';
   if(isMyPost) h += '<button class="btn" data-delete-post-id="'+escapeHtml(p.id)+'" style="background:#ffd6d6;margin-left:8px;">🗑 删除</button>';
   h += '</div></div>';
   document.body.insertAdjacentHTML('beforeend', h);
