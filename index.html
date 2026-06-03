@@ -3464,9 +3464,9 @@ function _renderPostsCore(filter = 'all') {
       <div class="card-foot">
         <div class="maker">
           <span class="avatar">${p.avatar}</span>
-          <span onclick="event.stopPropagation();showFriendProfile('${p.maker}')" style="cursor:pointer;text-decoration:underline;" title="查看主页">${escapeHtml(p.maker)}</span>
+          <span onclick="event.stopPropagation();showFriendProfile('${p.maker}')" style="cursor:pointer;text-decoration:underline;font-weight:600;color:var(--red);" title="点击查看发布者主页">📝 ${escapeHtml(p.maker)}</span>
         </div>
-        <span style="font-size:14px;color:rgba(45,45,45,.5);">${p.time}</span>
+        <span style="font-size:13px;color:rgba(45,45,45,.4);">${p.time}</span>
         ${p.maker === '我' || p.maker === myProfile.name || isAdmin ? '<button class="mini-btn reject" onclick="event.stopPropagation();deletePost(\'' + p.id + '\')" title="删除">🗑</button>' : ''}
       </div>
     </article>
