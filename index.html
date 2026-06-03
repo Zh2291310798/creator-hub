@@ -2113,6 +2113,14 @@ input, textarea, select { font: inherit; }
       <div class="platform-tags" id="drawerPlatforms"></div>
     </div>
     <div class="tags" id="drawerTags"></div>
+    <div class="drawer-comments" id="drawerComments" style="margin-top:14px;border-top:2px dashed var(--muted);padding-top:12px;">
+      <h4 style="font-family:var(--font-title);font-size:18px;margin:0 0 10px;">💬 留言</h4>
+      <div id="drawerCommentsList"></div>
+      <div style="display:flex;gap:6px;margin-top:8px;">
+        <input type="text" id="drawerCommentInput" placeholder="写留言...（Enter 发送）" style="flex:1;padding:8px 12px;border:2px solid var(--ink);border-radius:var(--wobbly);background:var(--gray);font-size:14px;outline:none;" />
+        <button class="btn" id="drawerCommentBtn" onclick="addItemComment()" style="font-size:13px;padding:6px 14px;">发送</button>
+      </div>
+    </div>
     <div class="drawer-actions" id="drawerActions">
       <button class="btn" onclick="showToast('已发送意向！对方会收到通知')" style="font-size:18px;">🤝 我有意向</button>
       <button class="btn secondary" onclick="showToast('已复制联系方式')">📋 复制联系方式</button>
@@ -2332,6 +2340,8 @@ function setupRealtime(){
   sb.channel("friend-req-"+currentUser).on("postgres_changes",{event:"INSERT",schema:"public",table:"friend_requests",filter:"to_user=eq."+currentUser},function(p){if(p.new&&!_localReqActions[p.new.from_user]&&!friendRequests.find(function(x){return x.from===p.new.from_user;})){friendRequests.push({from:p.new.from_user,message:p.new.message||"",time:fmtTime(p.new.created_at)});updateFriendBadge();renderFriendsList();}}).on("postgres_changes",{event:"DELETE",schema:"public",table:"friend_requests",filter:"to_user=eq."+currentUser},function(p){if(p.old){var _fi2=friendRequests.findIndex(function(x){return x.from===p.old.from_user;});if(_fi2>=0){friendRequests.splice(_fi2,1);updateFriendBadge();renderFriendsList();}}}).subscribe();
   sb.channel("friends-"+currentUser).on("postgres_changes",{event:"INSERT",schema:"public",table:"friends",filter:"username=eq."+currentUser},function(p){if(p.new&&!myFriends.includes(p.new.friend_name)){myFriends.push(p.new.friend_name);var _si=sentRequests.findIndex(function(s){return s.to===p.new.friend_name;});if(_si>=0)sentRequests.splice(_si,1);updateFriendBadge();renderFriendsList();}}).on("postgres_changes",{event:"DELETE",schema:"public",table:"friends",filter:"username=eq."+currentUser},function(p){if(p.old){var _fi=myFriends.indexOf(p.old.friend_name);if(_fi>=0){myFriends.splice(_fi,1);updateFriendBadge();renderFriendsList();}}}).subscribe();
   sb.channel("local-demands-live").on("postgres_changes",{event:"INSERT",schema:"public",table:"local_demands"},function(p){if(p.new&&!localDemands.find(function(x){return x.id===p.new.id;})){localDemands.unshift(p.new);renderLocalMatch();}}).on("postgres_changes",{event:"DELETE",schema:"public",table:"local_demands"},function(p){if(p.old){var _ldi=localDemands.findIndex(function(x){return x.id===p.old.id;});if(_ldi>=0){localDemands.splice(_ldi,1);renderLocalMatch();}}}).subscribe();
+  // Item comments live
+  sb.channel("item-comments-live").on("postgres_changes",{event:"INSERT",schema:"public",table:"item_comments"},function(p){if(p.new){var key=p.new.item_type+':'+p.new.item_id;if(!itemComments[key])itemComments[key]=[];if(!itemComments[key].find(function(x){return x.author===p.new.author&&x.text===p.new.content;})){itemComments[key].push({author:p.new.author,text:p.new.content,time:fmtTime(p.new.created_at)});if(window._currentItemId===p.new.item_id&&window._currentItemType===p.new.item_type){var clist=document.getElementById('drawerCommentsList');if(clist){var cmts=itemComments[key]||[];clist.innerHTML=cmts.map(function(c){return '<div style=\"margin:6px 0;padding:6px 10px;background:var(--gray);border-radius:8px;\"><b>'+escapeHtml(c.author)+'</b> <span style=\"font-size:12px;color:rgba(45,45,45,.4);\">'+c.time+'</span><p style=\"margin:4px 0 0;font-size:14px;\">'+escapeHtml(c.text)+'</p></div>';}).join('');}}}}}).subscribe();
   console.log("Realtime channels subscribed for "+currentUser);
   window._pollTimer=setInterval(pollUpdates,5000);
   document.addEventListener('visibilitychange',function(){if(!document.hidden){pollUpdates();if(window._pollTimer)clearInterval(window._pollTimer);window._pollTimer=setInterval(pollUpdates,5000);}else{if(window._pollTimer)clearInterval(window._pollTimer);window._pollTimer=setInterval(pollUpdates,30000);}});
@@ -2446,6 +2456,9 @@ async function loadAllData(){
   var rfr=await sb.from("friend_requests").select("*").eq("to_user",myProfile.name).eq("status","pending");var _newReqs=[];if(rfr.data&&rfr.data.length>0){rfr.data.forEach(function(fr){if(!_localReqActions[fr.from_user])_newReqs.push({from:fr.from_user,message:fr.message||"",time:fmtTime(fr.created_at)});});}friendRequests.length=0;_newReqs.forEach(function(fr){friendRequests.push(fr);});
   var rsf=await sb.from("friend_requests").select("to_user").eq("from_user",myProfile.name).eq("status","pending");if(rsf.data&&rsf.data.length>0){sentRequests.length=0;rsf.data.forEach(function(sr){sentRequests.push({to:sr.to_user,time:""});});}
   var rwm=await sb.from("world_messages").select("*").order("created_at",{ascending:false}).limit(50);if(rwm.data&&rwm.data.length>0){rwm.data.reverse().forEach(function(wm){if(!worldMessages.find(function(x){return x.id===wm.id;})){var _wmm={id:wm.id,sender:wm.sender,senderAvatar:wm.sender_avatar||wm.sender.slice(0,1),text:wm.content,time:fmtTime(wm.created_at)};worldMessages.push(_wmm);worldChat.push({from:wm.sender,text:wm.content,time:fmtTime(wm.created_at)});}});}
+  // Load item comments for recruits/matches/local
+  var ric=await sb.from("item_comments").select("*").order("created_at",{ascending:true}).limit(200);
+  itemComments={};if(ric.data&&ric.data.length>0){ric.data.forEach(function(c){var key=c.item_type+':'+c.item_id;if(!itemComments[key])itemComments[key]=[];itemComments[key].push({author:c.author,text:c.content,time:fmtTime(c.created_at)});});}
 sessionStorage.setItem("_poll_since",Date.now()-10000);
   updateLiveStats();
     renderRecruits();
@@ -3213,8 +3226,8 @@ function renderRecruits(filter = 'all') {
       <div class="tags">${r.tags.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>
       <div class="card-foot">
         <div class="maker">
-          <span class="avatar ${r.avatarBg}">${r.avatar}</span>
-          <span onclick="event.stopPropagation();showFriendProfile('${r.poster}')" style="cursor:pointer;text-decoration:underline;" title="查看主页">${escapeHtml(r.poster)}</span>
+          <span class="avatar ${r.avatarBg}">${r.avatar || (r.poster||'?').slice(0,1)}</span>
+          <span onclick="event.stopPropagation();showFriendProfile('${r.poster}')" style="cursor:pointer;text-decoration:underline;font-weight:600;color:var(--red);" title="点击查看发布者主页">📝 ${escapeHtml(r.poster || '匿名用户')}</span>
         </div>
         <button class="btn" onclick="event.stopPropagation();openRecruitDrawer('${r.id}')">查看详情</button>
         <button class="mini-btn-link" onclick="event.stopPropagation();quickAddFriend('${jsEscape(r.poster)}')" title="加好友">👥</button>
@@ -3227,6 +3240,9 @@ function renderRecruits(filter = 'all') {
 function openRecruitDrawer(id) {
   const r = recruits.find(x => x.id === id);
   if (!r) return;
+  // Store current item for comment
+  window._currentItemId = id;
+  window._currentItemType = 'recruit';
   // Reset row labels for recruit mode
   document.querySelectorAll('.drawer-row h3')[0].textContent = '详细需求';
   document.querySelectorAll('.drawer-row h3')[1].textContent = '预算/报酬';
@@ -3241,13 +3257,20 @@ function openRecruitDrawer(id) {
   document.getElementById('drawerBudget').textContent = r.budget;
   var _dp=document.getElementById('drawerPoster');_dp.textContent=r.poster;_dp.style.cursor='pointer';_dp.style.textDecoration='underline';_dp.onclick=function(){closeDrawer();showFriendProfile(r.poster);};
   document.getElementById('drawerPlatforms').innerHTML = r.platforms.map(platformTagHtml).join('');
-  document.getElementById('drawerTags').innerHTML = r.tags.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('');
+  document.getElementById('drawerTags').innerHTML = r.tags.map(t => '<span class=\"tag\">'+escapeHtml(t)+'</span>').join('');
+  // Render comments
+  var ckey = 'recruit:' + id;
+  var cmts = itemComments[ckey] || [];
+  var clist = document.getElementById('drawerCommentsList');
+  clist.innerHTML = cmts.length === 0 ? '<p style=\"color:rgba(45,45,45,.4);font-size:14px;\">暂无留言，来说两句吧</p>' :
+    cmts.map(function(c){ return '<div style=\"margin:6px 0;padding:6px 10px;background:var(--gray);border-radius:8px;\"><b>'+escapeHtml(c.author)+'</b> <span style=\"font-size:12px;color:rgba(45,45,45,.4);\">'+c.time+'</span><p style=\"margin:4px 0 0;font-size:14px;\">'+escapeHtml(c.text)+'</p></div>'; }).join('');
   // Restore recruit actions
   document.getElementById('drawerActions').innerHTML =
     '<button class="btn" onclick="deliverNotification(\''+escapeHtml(r.poster)+'\',\'💼 招募意向：对「'+escapeHtml(r.title)+'」感兴趣\',\'招募\');showToast(\'已发送意向！对方将在聊天中收到通知 💌\');addXP(30,\'招募意向\');" style="font-size:18px;">🤝 我有意向</button>' +
     '<button class="btn secondary" onclick="showToast(\'已复制联系方式\')">📋 复制联系方式</button>';
   currentPostId = null;
   openDrawer();
+  setTimeout(function(){ var inp=document.getElementById('drawerCommentInput');if(inp){inp.onkeydown=function(e){if(e.key==='Enter'){e.preventDefault();addItemComment();}};} },300);
 }
 
 function deleteRecruit(rid){
@@ -3350,8 +3373,8 @@ function renderMatch() {
       <div class="tags">${b.tags.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>
       <div class="card-foot">
         <div class="maker">
-          <span class="avatar ${b.avatarBg}">${b.avatar}</span>
-          <span>${escapeHtml(b.brand)}</span>
+          <span class="avatar ${b.avatarBg}">${b.avatar || (b.brand||'?').slice(0,1)}</span>
+          <span onclick="event.stopPropagation();showFriendProfile('${b.brand}')" style="cursor:pointer;text-decoration:underline;font-weight:600;color:var(--red);" title="点击查看发布者主页">📝 ${escapeHtml(b.brand || '匿名用户')}</span>
         </div>
         <button class="btn" onclick="event.stopPropagation();openMatchMsg(event,'${jsEscape(b.brand)}','品牌方')">我想合作</button>
         <button class="mini-btn-link" onclick="event.stopPropagation();quickAddFriend('${jsEscape(b.brand)}')" title="加好友">👥</button>
@@ -3372,8 +3395,8 @@ function renderMatch() {
       <div class="tags">${c.tags.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>
       <div class="card-foot">
         <div class="maker">
-          <span class="avatar ${c.avatarBg}">${c.avatar}</span>
-          <span>${escapeHtml(c.creator)}</span>
+          <span class="avatar ${c.avatarBg}">${c.avatar || (c.creator||'?').slice(0,1)}</span>
+          <span onclick="event.stopPropagation();showFriendProfile('${c.creator}')" style="cursor:pointer;text-decoration:underline;font-weight:600;color:var(--red);" title="点击查看发布者主页">📝 ${escapeHtml(c.creator || '匿名用户')}</span>
         </div>
         <button class="btn" onclick="event.stopPropagation();openMatchMsg(event,'${jsEscape(c.creator)}','达人')">联系TA</button>
         <button class="mini-btn-link" onclick="event.stopPropagation();quickAddFriend('${jsEscape(c.creator)}')" title="加好友">👥</button>
@@ -3430,7 +3453,7 @@ function renderLocalMatch() {
   var catLabels={food:'🍔 餐饮',beauty:'💆 美容',fitness:'🏋 健身',entertainment:'🎬 娱乐',hotel:'🏨 酒店',retail:'🛒 零售',other:'📌 其他'};
   var grid=dom.localDemandsGrid;
   if(!items.length){grid.innerHTML='<p style="color:rgba(45,45,45,.4);padding:20px;text-align:center;">该筛选条件下暂无本地需求<br><small>试试切换城市或品类，或者发布第一条需求！</small></p>';}
-  else {grid.innerHTML=items.map(function(d,i){var isMine=d.postedBy===currentUser;return '<article class="card" style="--tilt:'+randTilt(i)+';--tape:'+randTape(i)+'"><div class="card-top"><span class="card-status seeking">'+(catLabels[d.category]||d.category)+'</span></div><h3>'+escapeHtml(d.businessName)+'</h3><p style="font-size:14px;color:rgba(45,45,45,.6);">📍 '+escapeHtml(d.city)+(d.district?'·'+escapeHtml(d.district):'')+'</p><p style="font-weight:600;">'+escapeHtml(d.title)+'</p><p class="desc">'+escapeHtml(d.description)+'</p><div class="budget">'+escapeHtml(d.budget)+'</div><p style="font-size:13px;color:rgba(45,45,45,.5);">要求：'+escapeHtml(d.requirements||'无特殊要求')+'</p><div class="card-foot"><button class="btn" onclick="localMatchIntent(\''+d.id+'\')">🤝 我要接</button>'+'<span style="font-size:13px;color:rgba(45,45,45,.4);margin-left:8px;">'+escapeHtml(d.contact)+'</span>'+(isMine||isAdmin?'<button class="mini-btn reject" onclick="event.stopPropagation();deleteLocalDemand(\''+d.id+'\')" title="删除">🗑</button>':'')+'</div></article>';}).join('');}
+  else {grid.innerHTML=items.map(function(d,i){var isMine=d.postedBy===currentUser;var posterName=d.poster||d.postedBy||'匿名用户';return '<article class="card" style="--tilt:'+randTilt(i)+';--tape:'+randTape(i)+'"><div class="card-top"><span class="card-status seeking">'+(catLabels[d.category]||d.category)+'</span></div><h3>'+escapeHtml(d.businessName||d.title)+'</h3><p style="font-size:14px;color:rgba(45,45,45,.6);">📍 '+escapeHtml(d.city)+(d.district?'·'+escapeHtml(d.district):'')+'</p><p style="font-weight:600;">'+escapeHtml(d.title)+'</p><p class="desc">'+escapeHtml(d.description||'')+'</p><div class="budget">'+escapeHtml(d.budget||'面议')+'</div><p style="font-size:13px;color:rgba(45,45,45,.5);">要求：'+escapeHtml(d.requirements||'无特殊要求')+'</p><div class="card-foot"><div class="maker"><span class="avatar">'+(posterName.slice(0,1))+'</span><span onclick="event.stopPropagation();showFriendProfile(\''+posterName+'\')" style="cursor:pointer;text-decoration:underline;font-weight:600;color:var(--red);" title="点击查看发布者主页">📝 '+escapeHtml(posterName)+'</span></div><button class="btn" onclick="localMatchIntent(\''+d.id+'\')">🤝 我要接</button>'+'<span style="font-size:13px;color:rgba(45,45,45,.4);margin-left:8px;">'+escapeHtml(d.contact||'')+'</span>'+(isMine||isAdmin?'<button class="mini-btn reject" onclick="event.stopPropagation();deleteLocalDemand(\''+d.id+'\')" title="删除">🗑</button>':'')+'</div></article>';}).join('');}
 
   // Local creators recommendations
   var creators=allUsers.filter(function(u){return u.role==='creator'&&(!cityFilter||(u.city&&u.city.indexOf(cityFilter)!==-1));}).slice(0,6);
@@ -3579,6 +3602,41 @@ function closeDrawer() {
   document.getElementById('overlay').classList.remove('show');
 }
 
+// Add comment to current item (recruit/match/local)
+function addItemComment() {
+  var inp = document.getElementById('drawerCommentInput');
+  if (!inp) return;
+  var text = inp.value.trim();
+  if (!text) { showToast('请输入留言内容'); return; }
+  if (!currentUser) { showToast('请先登录'); return; }
+  var itemId = window._currentItemId;
+  var itemType = window._currentItemType || 'recruit';
+  if (!itemId) return;
+  var key = itemType + ':' + itemId;
+  if (!itemComments[key]) itemComments[key] = [];
+  var now = new Date();
+  itemComments[key].push({ author: myProfile.name, text: text, time: fmtTime(now.toISOString()) });
+  // Save to Supabase
+  sb.from('item_comments').insert({ item_id: itemId, item_type: itemType, author: myProfile.name, content: text }).then(function(r) {
+    if (r.error) console.error('Item comment insert failed:', r.error);
+  });
+  inp.value = '';
+  // Re-render comments in drawer
+  var cmts = itemComments[key] || [];
+  var clist = document.getElementById('drawerCommentsList');
+  if (clist) {
+    clist.innerHTML = cmts.map(function(c) {
+      return '<div style="margin:6px 0;padding:6px 10px;background:var(--gray);border-radius:8px;"><b>' + escapeHtml(c.author) + '</b> <span style="font-size:12px;color:rgba(45,45,45,.4);">' + c.time + '</span><p style="margin:4px 0 0;font-size:14px;">' + escapeHtml(c.text) + '</p></div>';
+    }).join('');
+  }
+  showToast('留言已发送 💬');
+  addXP(5, '留言');
+  // Notify the item poster
+  var r = recruits.find(function(x) { return x.id === itemId; });
+  if (r && r.poster && r.poster !== myProfile.name) {
+    deliverNotification(r.poster, '💬 新留言：「' + text.slice(0, 40) + '」', '招募留言');
+  }
+}
 
 // ========================================
 // FRIENDS DATA & LOGIC
@@ -4001,6 +4059,7 @@ document.querySelector('.profile-subnav').addEventListener('click', e => {
 // ========================================
 let currentPostId = null;
 const postComments = {}; // postId -> [{author, text, time}]
+var itemComments = {}; // "itemType:itemId" -> [{author, text, time}] for recruits/matches/local
 
 
 function fmtTime(ts){var d=new Date(ts);var now=new Date();var diff=Math.floor((now-d)/1000);if(diff<60)return"刚刚";if(diff<3600)return Math.floor(diff/60)+"分钟前";if(diff<86400)return Math.floor(diff/3600)+"小时前";if(diff<604800)return Math.floor(diff/86400)+"天前";return d.toLocaleDateString("zh-CN");}

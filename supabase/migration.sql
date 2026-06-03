@@ -76,6 +76,18 @@ CREATE TABLE IF NOT EXISTS comments (
 );
 
 -- ============================================
+-- 3b. 通用评论（招募/对接/本地需求通用）
+-- ============================================
+CREATE TABLE IF NOT EXISTS item_comments (
+  id BIGSERIAL PRIMARY KEY,
+  item_id TEXT NOT NULL,
+  item_type TEXT NOT NULL DEFAULT 'recruit',
+  author TEXT NOT NULL,
+  content TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================
 -- 4. 聊天
 -- ============================================
 CREATE TABLE IF NOT EXISTS chat_messages (
@@ -238,6 +250,7 @@ CREATE TABLE IF NOT EXISTS post_likes (
   PRIMARY KEY (post_id, username)
 );
 
+ALTER TABLE item_comments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE post_likes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE posts ENABLE ROW LEVEL SECURITY;
@@ -255,6 +268,7 @@ ALTER TABLE onboarding_status ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tracking_events ENABLE ROW LEVEL SECURITY;
 
 -- 认证用户可读所有公开数据
+CREATE POLICY "allow_select_auth" ON item_comments FOR SELECT USING (true);
 CREATE POLICY "allow_select_auth" ON profiles FOR SELECT USING (true);
 CREATE POLICY "allow_select_auth" ON posts FOR SELECT USING (true);
 CREATE POLICY "allow_select_auth" ON comments FOR SELECT USING (true);
@@ -266,6 +280,7 @@ CREATE POLICY "allow_select_auth" ON local_demands FOR SELECT USING (true);
 -- 认证用户可写
 CREATE POLICY "allow_insert_auth" ON posts FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
 CREATE POLICY "allow_insert_auth" ON comments FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+CREATE POLICY "allow_insert_auth" ON item_comments FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
 CREATE POLICY "allow_insert_auth" ON chat_messages FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
 CREATE POLICY "allow_insert_auth" ON world_messages FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
 CREATE POLICY "allow_insert_auth" ON notifications FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
@@ -330,12 +345,14 @@ ALTER PUBLICATION supabase_realtime ADD TABLE friend_requests;
 ALTER PUBLICATION supabase_realtime ADD TABLE friends;
 ALTER PUBLICATION supabase_realtime ADD TABLE local_demands;
 ALTER PUBLICATION supabase_realtime ADD TABLE post_likes;
+ALTER PUBLICATION supabase_realtime ADD TABLE item_comments;
 
 -- ============================================
 -- 索引
 -- ============================================
 CREATE INDEX IF NOT EXISTS idx_posts_created ON posts(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_comments_post ON comments(post_id);
+CREATE INDEX IF NOT EXISTS idx_item_comments ON item_comments(item_id, item_type, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_chat_users ON chat_messages(sender, recipient, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_world_time ON world_messages(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_notif_user ON notifications(username, is_read, created_at DESC);
