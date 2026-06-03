@@ -2320,7 +2320,7 @@ function pollUpdates(){
   });
   sb.from("comments").select("*").gt("created_at",new Date(parseInt(since)).toISOString()).then(function(r){if(r.data&&r.data.length>0){r.data.forEach(function(c){if(!postComments[c.post_id])postComments[c.post_id]=[];if(!postComments[c.post_id].find(function(x){return x.author===c.author&&x.text===c.content;})){postComments[c.post_id].push({author:c.author,text:c.content,time:fmtTime(c.created_at)});var _pp=posts.find(function(x){return x.id===c.post_id;});if(_pp)_pp.comments=postComments[c.post_id].length;}});if(currentPostId&&postComments[currentPostId]){var _ov=document.getElementById("postFullview");if(_ov){var _ci=_ov.querySelector(".post-full-comments h3");if(_ci)_ci.textContent="💬 评论 ("+postComments[currentPostId].length+")";}}};renderPosts();});
   var _pids=posts.map(function(x){return x.id;});if(_pids.length>0){sb.from("posts").select("id,likes,comment_count").in("id",_pids).then(function(r){if(r.data&&r.data.length>0){r.data.forEach(function(sp){var lp=posts.find(function(x){return x.id===sp.id;});if(lp&&lp.likes!==sp.likes){lp.likes=sp.likes||0;}});renderPosts();}});}
-  sb.from("recruits").select("*").gt("created_at",new Date(parseInt(since)).toISOString()).then(function(r){if(r.data&&r.data.length>0){r.data.forEach(function(rr){if(!recruits.find(function(x){return x.id===rr.id;})){recruits.unshift(rr);}});renderRecruits();}});sb.from("match_demands").select("*").gt("created_at",new Date(parseInt(since)).toISOString()).then(function(r){if(r.data&&r.data.length>0){r.data.forEach(function(md){var arr=md.role==="brand"?brandSeekingData:creatorSeekingData;if(!arr.find(function(x){return x.id===md.id;})){arr.unshift(md);}});renderMatch();}});sb.from("local_demands").select("*").gt("created_at",new Date(parseInt(since)).toISOString()).then(function(r){if(r.data&&r.data.length>0){r.data.forEach(function(ld){if(!localDemands.find(function(x){return x.id===ld.id;})){localDemands.unshift(ld);}});renderLocalMatch();}});sessionStorage.setItem("_poll_since",Date.now()-5000);
+  sb.from("recruits").select("*").gt("created_at",new Date(parseInt(since)).toISOString()).then(function(r){if(r.data&&r.data.length>0){r.data.forEach(function(rr){if(!recruits.find(function(x){return x.id===rr.id;})){recruits.unshift(rr);}});renderRecruits();}});sb.from("match_demands").select("*").gt("created_at",new Date(parseInt(since)).toISOString()).then(function(r){if(r.data&&r.data.length>0){r.data.forEach(function(md){var arr=md.role==="brand"?brandSeekingData:creatorSeekingData;if(!arr.find(function(x){return x.id===md.id;})){var nmd={id:md.id,title:md.title||md.description.slice(0,30),budget:md.budget||"面议",desc:md.description||"",platforms:typeof md.platforms==="string"?JSON.parse(md.platforms||"[]"):(md.platforms||[]),tags:typeof md.tags==="string"?JSON.parse(md.tags||"[]"):(md.tags||[]),detail:md.description||"",avatar:md.poster.slice(0,1),avatarBg:""};if(md.role==="brand"){nmd.brand=md.poster;}else{nmd.creator=md.poster;}arr.unshift(nmd);}});renderMatch();}});sb.from("local_demands").select("*").gt("created_at",new Date(parseInt(since)).toISOString()).then(function(r){if(r.data&&r.data.length>0){r.data.forEach(function(ld){if(!localDemands.find(function(x){return x.id===ld.id;})){localDemands.unshift(ld);}});renderLocalMatch();}});sessionStorage.setItem("_poll_since",Date.now()-5000);
 }
 
 // ========================================
@@ -2335,7 +2335,7 @@ async function loadAllData(){
   if(rp.data&&rp.data.length>0){rp.data.forEach(function(p){if(!posts.find(function(x){return x.id===p.id;})){posts.unshift({id:p.id,title:p.title,category:p.category,categoryLabel:p.category_label||'其他',maker:p.author||p.maker,avatar:p.author_avatar||p.avatar,time:(function(t){var d=new Date(t);return d.toLocaleDateString('zh-CN',{month:'numeric',day:'numeric'})+' '+d.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})})(p.created_at),desc:p.content||p.desc,platform:p.platform||'all',likes:p.likes||0,comments:p.comment_count||0,tags:p.tags});}});renderPosts();}
   // Load recruits
   var rr=await sb.from("recruits").select("*").order("created_at",{ascending:false}).limit(50);
-  if(rr.data&&rr.data.length>0){rr.data.forEach(function(r){if(!recruits.find(function(x){return x.id===r.id;}))recruits.unshift(r);});}
+  if(rr.data&&rr.data.length>0){rr.data.forEach(function(r){if(!recruits.find(function(x){return x.id===r.id;}))var nr={id:r.id,title:r.title,poster:r.poster,avatar:r.poster_avatar||r.poster.slice(0,1),avatarBg:"",type:r.type||"maker",mode:r.mode||"全职",desc:r.description||r.desc||"",detail:r.detail||r.description||"",budget:r.budget||"面议",city:r.city||"",platforms:typeof r.platforms==="string"?JSON.parse(r.platforms||"[]"):(r.platforms||[]),tags:typeof r.tags==="string"?JSON.parse(r.tags||"[]"):(r.tags||[]),status:r.status||"招募中",statusClass:r.status_class||"active-recruit"};recruits.unshift(nr);});}
   // Load local demands
   var rl=await sb.from("local_demands").select("*").order("created_at",{ascending:false}).limit(50);
   if(rl.data&&rl.data.length>0){localStorage.setItem("creatorhub_local_demands",JSON.stringify(rl.data));}
@@ -2356,7 +2356,11 @@ async function loadAllData(){
     });
     renderChatContacts();
   }
-  sessionStorage.setItem("_poll_since",Date.now()-10000);
+    var rpro=await sb.from("profiles").select("*");if(rpro.data&&rpro.data.length>0){allUsers.length=0;rpro.data.forEach(function(p){allUsers.push({id:p.username||p.id,name:p.username||"",avatar:(p.avatar_text||p.username||"?").slice(0,1),avatarBg:"",role:p.role||"creator",roleLabel:p.role_label||"",online:false,desc:p.bio||"",platforms:[],tags:[],followers:p.level?String.fromCharCode(76,118,46)+p.level:""});});}
+  var rmd=await sb.from("match_demands").select("*").order("created_at",{ascending:false}).limit(50);if(rmd.data&&rmd.data.length>0){rmd.data.forEach(function(md){var arr=md.role==="brand"?brandSeekingData:creatorSeekingData;if(!arr.find(function(x){return x.id===md.id;})){var nmd2={id:md.id,title:md.description?md.description.slice(0,30):"",budget:md.budget||"面议",desc:md.description||"",platforms:typeof md.platforms==="string"?JSON.parse(md.platforms||"[]"):(md.platforms||[]),tags:[],detail:md.description||"",avatar:md.poster?md.poster.slice(0,1):"?",avatarBg:""};if(md.role==="brand"){nmd2.brand=md.poster;}else{nmd2.creator=md.poster;}arr.unshift(nmd2);}});}
+  var rfr=await sb.from("friend_requests").select("*").eq("to_user",myProfile.name).eq("status","pending");if(rfr.data&&rfr.data.length>0){friendRequests.length=0;rfr.data.forEach(function(fr){friendRequests.push({from:fr.from_user,message:"",time:fmtTime(fr.created_at)});});}
+  var rwm=await sb.from("world_messages").select("*").order("created_at",{ascending:false}).limit(50);if(rwm.data&&rwm.data.length>0){rwm.data.reverse().forEach(function(wm){if(!worldMessages.find(function(x){return x.id===wm.id;})){worldMessages.push({sender:wm.sender,senderAvatar:wm.sender_avatar||wm.sender.slice(0,1),text:wm.content,time:fmtTime(wm.created_at)});}});}
+sessionStorage.setItem("_poll_since",Date.now()-10000);
   setupRealtime();
 }
 // AVATAR SYSTEM
@@ -2513,224 +2517,18 @@ document.addEventListener('DOMContentLoaded', function(){
 // ========================================
 
 // Chat contacts
-const contacts = [
-  { id: "c1", name: "美妆达人小A", avatar: "A", avatarBg: "xhs-bg", platform: "xhs", unread: 2, lastMsg: "好的，这个合作可以聊一下具体细节", messages: [
-    { from: "them", text: "你好！看到你在小红书上的内容，很有风格", time: "10:20" },
-    { from: "me", text: "谢谢！你们品牌主要做什么方向？", time: "10:22" },
-    { from: "them", text: "我们是做护肤品的，想找一些真实体验类的推广", time: "10:24" },
-    { from: "them", text: "好的，这个合作可以聊一下具体细节", time: "10:25" }
-  ]},
-  { id: "c2", name: "数码品牌方老张", avatar: "张", avatarBg: "dy-bg", platform: "douyin", unread: 1, lastMsg: "我们想找抖音科技类主播做开箱", messages: [
-    { from: "them", text: "你好，你们频道粉丝画像是什么样？", time: "09:15" },
-    { from: "me", text: "主要是25-35男性，科技数码爱好者", time: "09:18" },
-    { from: "them", text: "我们想找抖音科技类主播做开箱", time: "09:20" }
-  ]},
-  { id: "c3", name: "美食主播大刘", avatar: "刘", avatarBg: "ks-bg", platform: "kuaishou", unread: 0, lastMsg: "一起搞个联名直播怎么样", messages: [
-    { from: "me", text: "你上次那个火锅探店选题真不错", time: "昨天" },
-    { from: "them", text: "哈哈谢谢！一起搞个联名直播怎么样", time: "昨天" }
-  ]},
-  { id: "c4", name: "B站UP主小王", avatar: "王", avatarBg: "bi-bg", platform: "bilibili", unread: 0, lastMsg: "你那个剪辑教程能转载吗", messages: [
-    { from: "them", text: "你那个剪辑教程能转载吗", time: "周一" },
-    { from: "me", text: "可以的，标明出处就行", time: "周一" }
-  ]},
-  { id: "c5", name: "MCN机构-星辰", avatar: "星", avatarBg: "", platform: "all", unread: 0, lastMsg: "我们正在招募优质达人，有兴趣吗", messages: [
-    { from: "them", text: "我们正在招募优质达人，有兴趣吗", time: "上周五" }
-  ]}
-];
+const contacts = [];
 
 // Recruit listings
-const recruits = [
-  {
-    id: "r1", title: "小红书美妆达人招募", poster: "花漾美妆品牌", avatar: "花", avatarBg: "xhs-bg",
-    status: "急招", statusClass: "urgent",
-    budget: "¥5,000-15,000 / 条",
-    desc: "寻找小红书美妆类达人，粉丝量5k-50k均可，需要真实使用体验类内容，不要求硬广风格。",
-    detail: "需要发布1-3条小红书笔记，包含产品真实使用前后对比。要求原创拍摄，拒绝搬运。粉丝画像需为18-35岁女性为主。合作方式：基础费+佣金分成，长期合作可签框架协议。",
-    platforms: ["xhs"],
-    tags: ["美妆", "护肤品", "真实体验", "长期合作"],
-    type: "maker"
-  },
-  {
-    id: "r2", title: "抖音数码产品开箱主播", poster: "极客科技", avatar: "极", avatarBg: "dy-bg",
-    status: "招募中", statusClass: "active-recruit",
-    budget: "¥8,000-20,000 / 场",
-    desc: "抖音科技类目主播，需要做新品手机/耳机开箱直播，要求有一定数码知识储备。",
-    detail: "每周1-2场开箱直播，时长1-2小时。需要主播对数码产品有真实了解，能回答观众提问。提供全套产品样机，可长期签约。优先考虑有科技类内容创作经验的主播。",
-    platforms: ["douyin"],
-    tags: ["数码", "开箱", "直播", "科技"],
-    type: "maker"
-  },
-  {
-    id: "r3", title: "品牌小红书运营专员", poster: "轻食主义", avatar: "轻", avatarBg: "xhs-bg",
-    status: "急招", statusClass: "urgent",
-    budget: "¥12K-18K / 月",
-    desc: "负责品牌小红书账号日常运营，要求熟悉小红书平台规则和内容趋势。",
-    detail: "全职岗位，负责品牌小红书账号内容规划、笔记创作、数据分析、KOC合作对接。要求1年以上小红书运营经验，有食品/生活方式类目经验优先。五险一金+弹性工作。",
-    platforms: ["xhs"],
-    tags: ["运营", "全职", "食品", "品牌方"],
-    type: "merchant"
-  },
-  {
-    id: "r4", title: "全平台短视频编导", poster: "星辰MCN", avatar: "星", avatarBg: "",
-    status: "招募中", statusClass: "active-recruit",
-    budget: "¥15K-25K / 月",
-    desc: "负责旗下达人多平台短视频内容策划与脚本创作，覆盖抖音/小红书/B站。",
-    detail: "需要根据每个平台特性策划差异化内容，管理3-5个达人账号。要求2年以上短视频编导经验，有爆款案例优先。熟悉各平台推荐算法和热门趋势。",
-    platforms: ["douyin", "xhs", "bilibili"],
-    tags: ["编导", "多平台", "MCN", "内容策划"],
-    type: "tech"
-  },
-  {
-    id: "r5", title: "快手直播带货主播", poster: "优选供应链", avatar: "优", avatarBg: "ks-bg",
-    status: "招募中", statusClass: "active-recruit",
-    budget: "底薪¥8K + 高额提成",
-    desc: "招募快手平台带货主播，源头工厂直供，品类为家居日用+小家电。",
-    detail: "每天直播4-6小时，可选日间或晚间时段。提供完整供应链支持和直播间搭建。无经验可培训，但要求表达流畅、有亲和力。提成比例行业领先。",
-    platforms: ["kuaishou"],
-    tags: ["直播带货", "家居", "供应链", "高提成"],
-    type: "maker"
-  },
-  {
-    id: "r6", title: "B站UP主商务对接", poster: "游戏谷工作室", avatar: "游", avatarBg: "bi-bg",
-    status: "招募中", statusClass: "active-recruit",
-    budget: "面议（含CPM分成）",
-    desc: "游戏类B站UP主招募，做新游试玩和评测内容，需粉丝≥1万。",
-    detail: "提供新游戏抢先体验资格+创作激励金。内容形式可以是实况解说、评测视频或直播。合作周期灵活，单次或长期均可。",
-    platforms: ["bilibili"],
-    tags: ["游戏", "评测", "UP主", "新游"],
-    type: "maker"
-  },
-  {
-    id: "r7", title: "TikTok英文主播招募", poster: "跨境出海小林", avatar: "林", avatarBg: "",
-    status: "急招", statusClass: "urgent",
-    budget: "¥8,000-25,000 / 月",
-    desc: "招募TikTok英语直播主播，面向欧美市场做中国产品展示和讲解。",
-    detail: "需要英语流利，有镜头感。不需要露脸，以产品展示为主。每天直播3-5小时，覆盖欧美黄金时段。提供完整选品和供应链支持。",
-    platforms: ["tiktok"],
-    tags: ["出海", "英语", "TikTok", "直播"],
-    type: "maker"
-  },
-  {
-    id: "r8", title: "得物潮牌内容合作", poster: "得物穿搭师Coco", avatar: "C", avatarBg: "xhs-bg",
-    status: "招募中", statusClass: "active-recruit",
-    budget: "¥2,000-6,000 / 篇",
-    desc: "寻找得物平台潮流穿搭创作者，做球鞋/潮牌开箱和搭配内容。",
-    detail: "合作方式灵活，单篇或系列均可。需要有一定潮流认知和摄影能力。优先考虑已有得物账号的创作者。",
-    platforms: ["dewu"],
-    tags: ["潮流", "球鞋", "开箱", "穿搭"],
-    type: "maker"
-  },
-  {
-    id: "r9", title: "YouTube中文频道内容合作", poster: "跨境出海小林", avatar: "林", avatarBg: "",
-    status: "招募中", statusClass: "active-recruit",
-    budget: "¥5,000-15,000 / 条",
-    desc: "寻找YouTube中文创作者，制作中国文化/美食/旅行类长视频内容。",
-    detail: "视频时长8-20分钟，需要有故事性和制作质量。面向海外华人及对中国文化感兴趣的外国观众。可长期合作，提供选题和流量支持。",
-    platforms: ["youtube"],
-    tags: ["YouTube", "长视频", "文化", "美食"],
-    type: "maker"
-  }
-];
+const recruits = [];
 
 // Match listings (brand ↔ creator)
-const brandSeekingData = [
-  {
-    id: "b1", title: "护肤品品牌找小红书+抖音达人", brand: "薇诺肌", avatar: "薇", avatarBg: "xhs-bg",
-    budget: "¥3,000-10,000/条",
-    desc: "新品精华液推广，需要30位中小达人做真实测评，注重内容真实度而非粉丝量。",
-    detail: "产品主打敏感肌修护，希望达人真实使用7天后产出内容。提供全套产品+成分检测报告。",
-    platforms: ["xhs", "douyin"],
-    tags: ["护肤", "测评", "中小达人", "真实使用"]
-  },
-  {
-    id: "b2", title: "运动品牌找抖音+快手带货主播", brand: "跃动体育", avatar: "跃", avatarBg: "dy-bg",
-    budget: "¥10,000-50,000/场+佣金",
-    desc: "新季度运动鞋服系列，找有运动健身属性的主播做直播带货。",
-    detail: "品牌提供全套样品+直播话术培训+投流支持。要求主播有运动/健身相关人设，直播间平均在线≥200人。",
-    platforms: ["douyin", "kuaishou"],
-    tags: ["运动", "直播带货", "鞋服", "品牌专场"]
-  }
-];
+const brandSeekingData = [];
 
-const creatorSeekingData = [
-  {
-    id: "c1", title: "小红书10w粉穿搭博主找服饰品牌合作", creator: "穿搭师Nina", avatar: "N", avatarBg: "xhs-bg",
-    budget: "期望¥5,000+/条",
-    desc: "粉丝画像：22-35岁一二线城市女性，内容风格：极简通勤穿搭，可接季度代言或单条合作。",
-    detail: "账号数据：平均笔记曝光50w+，互动率8%+。可提供详细粉丝画像和往期合作案例。接受服饰、配饰、鞋包品类。",
-    platforms: ["xhs"],
-    tags: ["穿搭", "10w粉", "通勤风", "女性用户"]
-  },
-  {
-    id: "c2", title: "抖音50w+剧情类达人开放商务合作", creator: "剧有趣工作室", avatar: "剧", avatarBg: "dy-bg",
-    budget: "¥30,000+/条 或 项目制",
-    desc: "擅长轻喜剧/反转剧情，单条平均播放300w+，开放品牌植入、定制剧情等合作形式。",
-    detail: "团队制作，含编导+拍摄+后期全链条。可接品牌定制短剧（3-5集系列），或单条软植入。合作过美妆、食品、3C等多品类。",
-    platforms: ["douyin"],
-    tags: ["剧情", "50w粉", "品牌植入", "专业团队"]
-  },
-  {
-    id: "c3", title: "全平台美食达人寻餐饮品牌合作", creator: "吃货阿Ken", avatar: "K", avatarBg: "",
-    budget: "¥2,000-8,000/条 视平台而定",
-    desc: "覆盖小红书+抖音+B站三平台，内容以探店+自制美食为主，累计粉丝30w+。",
-    detail: "可做探店拍摄、菜品评测、联名菜单开发。注重内容质感和真实评价，不接受纯硬广。",
-    platforms: ["xhs", "douyin", "bilibili"],
-    tags: ["美食", "探店", "多平台", "联名"]
-  }
-];
+const creatorSeekingData = [];
 
 // Community posts
-let posts = [
-  {
-    id: "p1", title: "小红书笔记限流的10个自查方法", category: "guide", categoryLabel: "干货教程",
-    maker: "运营老司机", avatar: "运", time: "2小时前",
-    desc: "做了3年小红书运营，总结一下笔记被限流时应该从哪些方面排查...",
-    platform: "xhs",
-    likes: 238, comments: 56
-  },
-  {
-    id: "p2", title: "从0到10w粉——我在抖音做知识类账号的一年", category: "exp", categoryLabel: "经验分享",
-    maker: "知识博主小李", avatar: "李", time: "5小时前",
-    desc: "纯素人起步，不投流不买粉，全靠内容一步步做起来的真实复盘...",
-    platform: "douyin",
-    likes: 412, comments: 89
-  },
-  {
-    id: "p3", title: "品牌方找达人合作的5个坑，我都踩过了", category: "exp", categoryLabel: "经验分享",
-    maker: "品牌主理人阿Jay", avatar: "J", time: "昨天",
-    desc: "作为品牌方这两年和50+达人合作过，分享一些血泪教训...",
-    platform: "all",
-    likes: 327, comments: 102
-  },
-  {
-    id: "p4", title: "跨平台运营到底值不值得？抖音+小红书真实对比", category: "qa", categoryLabel: "求助问答",
-    maker: "纠结中的创作者", avatar: "纠", time: "昨天",
-    desc: "目前在抖音有8w粉丝，在想要不要同时做小红书。两边内容风格差异大，担心精力不够...",
-    platform: "all",
-    likes: 156, comments: 73
-  },
-  {
-    id: "p5", title: "直播带货话术大全（新人必看）", category: "guide", categoryLabel: "干货教程",
-    maker: "金牌主播培训", avatar: "培", time: "2天前",
-    desc: "整理了30套经过实战检验的直播话术模板，覆盖开播、互动、逼单、转款各个阶段...",
-    platform: "all",
-    likes: 891, comments: 134
-  },
-  {
-    id: "p6", title: "B站恰饭视频怎么做才不被骂？", category: "qa", categoryLabel: "求助问答",
-    maker: "B站小透明", avatar: "B", time: "3天前",
-    desc: "接到第一个商单但是很紧张，怕被粉丝说恰烂饭。有没有UP主前辈分享一下经验...",
-    platform: "bilibili",
-    likes: 198, comments: 67
-  },
-  {
-    id: "p7", title: "2025年短视频行业趋势预判", category: "news", categoryLabel: "行业动态",
-    maker: "行业观察员", avatar: "观", time: "3天前",
-    desc: "AI生成内容、平台政策变化、品牌预算流向...聊聊今年可能影响创作者生态的几件大事...",
-    platform: "all",
-    likes: 445, comments: 98
-  }
-];
+let posts = [];
 
 let nextPostId = 8;
 
@@ -2781,11 +2579,11 @@ function publishMatch(){
     detail:desc
   };
   if(role==='brand'){
-    item.brand=myProfile.name;item.avatar=myProfile.name.slice(0,1);item.avatarBg='';
-    brandSeekingData.unshift(item);sb.from("match_demands").insert({id:item.id,poster:item.poster,role:item.role,platforms:item.platforms,budget:item.budget,description:item.description}).then(function(r){if(r.error)console.error("Match insert failed:",r.error);});
+    item.brand=myProfile.name;item.poster=myProfile.name;item.role='brand';item.avatar=myProfile.name.slice(0,1);item.avatarBg='';item.title=title;item.description=desc;
+    brandSeekingData.unshift(item);sb.from("match_demands").insert({id:item.id,poster:myProfile.name,role:"brand",platforms:platforms,budget:budget||"面议",description:desc}).then(function(r){if(r.error)console.error("Match insert failed:",r.error);});
   }else{
-    item.creator=myProfile.name;item.avatar=myProfile.name.slice(0,1);item.avatarBg='';
-    creatorSeekingData.unshift(item);sb.from("match_demands").insert({id:item.id,poster:item.poster,role:item.role,platforms:item.platforms,budget:item.budget,description:item.description}).then(function(r){if(r.error)console.error("Match insert failed:",r.error);});
+    item.creator=myProfile.name;item.poster=myProfile.name;item.role='creator';item.avatar=myProfile.name.slice(0,1);item.avatarBg='';item.title=title;item.description=desc;
+    creatorSeekingData.unshift(item);sb.from("match_demands").insert({id:item.id,poster:myProfile.name,role:"creator",platforms:platforms,budget:budget||"面议",description:desc}).then(function(r){if(r.error)console.error("Match insert failed:",r.error);});
   }
   track('match_demand_publish',{demand_type:role,platform:platforms[0]});
   renderMatch();
@@ -3504,7 +3302,7 @@ function publishLocalDemand() {
   var fb=document.getElementById('ldFeedback');
   if(!bname||!city||!title||!desc){fb.textContent='商家名称、城市、标题和描述不能为空！';fb.style.color='var(--red)';return;}
   localDemands.unshift({id:'ld'+Date.now(),businessName:bname,city:city,district:dist,category:cat,title:title,description:desc,budget:budget||'面议',requirements:reqs,contact:contact,postedBy:currentUser,postedAt:Date.now(),status:'open'});
-  localStorage.setItem('creatorhub_local_demands',JSON.stringify(localDemands));
+  localStorage.setItem('creatorhub_local_demands',JSON.stringify(localDemands));sb.from('local_demands').insert({id:newDemand.id,poster:myProfile.name,business_name:bname||'',city:city||'',district:dist||'',category:cat||'',title:title,description:desc,budget:budget||'面议',requirements:reqs||'',contact:contact||'',status:'open'}).then(function(r){if(r.error)console.error('Local demand insert failed:',r.error);});
   track('local_demand_publish',{city:city,category:cat,budget:budget});
   document.getElementById('ldBusiness').value='';document.getElementById('ldTitle').value='';document.getElementById('ldDesc').value='';document.getElementById('ldBudget').value='';document.getElementById('ldRequirements').value='';document.getElementById('ldContact').value='';document.getElementById('ldDistrict').value='';
   toggleLocalDemandForm();fb.textContent='需求已发布！';fb.style.color='var(--sage)';
@@ -3648,51 +3446,12 @@ function closeDrawer() {
 
 // All users in the system (discoverable)
 var userDB = {};
-const allUsers = [
-  { id: "u1", name: "美妆达人小A", avatar: "A", avatarBg: "xhs-bg", role: "creator", roleLabel: "创作者/达人", online: true,
-    desc: "小红书美妆创作者，擅长护肤测评和妆容教程，粉丝12w+。", platforms: ["xhs"], tags: ["美妆","护肤","测评"], followers: "12.8w" },
-  { id: "u2", name: "数码品牌方老张", avatar: "张", avatarBg: "dy-bg", role: "brand", roleLabel: "品牌方", online: true,
-    desc: "科技数码品牌市场总监，负责达人合作与品牌推广。", platforms: ["douyin","bilibili"], tags: ["数码","品牌方","科技"], followers: "品牌账号50w+" },
-  { id: "u3", name: "美食主播大刘", avatar: "刘", avatarBg: "ks-bg", role: "creator", roleLabel: "创作者/主播", online: false,
-    desc: "快手美食类主播，擅长火锅探店和家常菜直播，粉丝8w。", platforms: ["kuaishou"], tags: ["美食","探店","直播"], followers: "8.2w" },
-  { id: "u4", name: "B站UP主小王", avatar: "王", avatarBg: "bi-bg", role: "creator", roleLabel: "创作者/UP主", online: true,
-    desc: "B站科技区UP主，做数码产品评测和剪辑教程，粉丝15w。", platforms: ["bilibili"], tags: ["科技","评测","教程"], followers: "15.3w" },
-  { id: "u5", name: "MCN星辰文化", avatar: "星", avatarBg: "", role: "merchant", roleLabel: "MCN机构", online: false,
-    desc: "专注达人孵化与品牌对接的MCN机构，签约达人50+，覆盖全平台。", platforms: ["douyin","xhs","kuaishou","bilibili"], tags: ["MCN","达人孵化","品牌对接"], followers: "矩阵粉丝200w+" },
-  { id: "u6", name: "穿搭师Nina", avatar: "N", avatarBg: "xhs-bg", role: "creator", roleLabel: "创作者/达人", online: true,
-    desc: "小红书10w粉穿搭博主，极简通勤风，22-35岁女性用户为主。", platforms: ["xhs"], tags: ["穿搭","通勤风","时尚"], followers: "10.6w" },
-  { id: "u7", name: "优选供应链-陈总", avatar: "陈", avatarBg: "ks-bg", role: "merchant", roleLabel: "商家/供应链", online: false,
-    desc: "家居日用品源头工厂，提供直播带货一站式供应链服务。", platforms: ["kuaishou","douyin"], tags: ["供应链","家居","直播带货"], followers: "合作主播200+" },
-  { id: "u8", name: "游戏谷工作室", avatar: "游", avatarBg: "bi-bg", role: "brand", roleLabel: "品牌/工作室", online: true,
-    desc: "独立游戏工作室，寻找B站/抖音游戏类UP主做新游推广。", platforms: ["bilibili","douyin"], tags: ["游戏","独立游戏","推广"], followers: "旗下游戏玩家30w+" },
-  { id: "u9", name: "运营老司机", avatar: "运", avatarBg: "", role: "creator", roleLabel: "创作者/博主", online: true,
-    desc: "3年小红书运营经验，分享平台规则和运营干货。", platforms: ["xhs"], tags: ["运营","干货","小红书"], followers: "5.8w" },
-  { id: "u10", name: "剧有趣工作室", avatar: "剧", avatarBg: "dy-bg", role: "creator", roleLabel: "创作团队", online: false,
-    desc: "抖音50w+剧情类达人，含编导+拍摄+后期全链条。", platforms: ["douyin"], tags: ["剧情","品牌植入","专业团队"], followers: "52.1w" },
-  { id: "u11", name: "薇诺肌品牌", avatar: "薇", avatarBg: "xhs-bg", role: "brand", roleLabel: "品牌方", online: true,
-    desc: "敏感肌修护护肤品牌，主打真实测评类推广合作。", platforms: ["xhs","douyin"], tags: ["护肤","敏感肌","品牌"], followers: "品牌账号20w+" },
-  { id: "u12", name: "跃动体育", avatar: "跃", avatarBg: "dy-bg", role: "brand", roleLabel: "品牌方", online: false,
-    desc: "新锐运动品牌，运动鞋服系列，寻找运动健身类主播带货。", platforms: ["douyin","kuaishou"], tags: ["运动","鞋服","直播带货"], followers: "品牌账号35w+" },
-  { id: "u13", name: "跨境出海小林", avatar: "林", avatarBg: "", role: "creator", roleLabel: "创作者/博主", online: true,
-    desc: "TikTok+YouTube英语内容创作者，做中国文化出海内容，粉丝50w+。", platforms: ["tiktok","youtube"], tags: ["出海","英语","中国文化"], followers: "52w" },
-  { id: "u14", name: "得物穿搭师Coco", avatar: "C", avatarBg: "xhs-bg", role: "creator", roleLabel: "创作者/达人", online: true,
-    desc: "得物+小红书双平台潮流穿搭博主，主攻球鞋和街头风。", platforms: ["dewu","xhs"], tags: ["潮流","球鞋","街头"], followers: "8.9w" },
-  { id: "u15", name: "淘宝品牌代播-老赵", avatar: "赵", avatarBg: "dy-bg", role: "merchant", roleLabel: "商家/代播", online: false,
-    desc: "淘宝+拼多多双平台直播代运营，专做食品和农产品类目。", platforms: ["taobao","pdd"], tags: ["直播代运营","食品","农产品"], followers: "合作品牌30+" },
-  { id: "u16", name: "知乎科技大V", avatar: "知", avatarBg: "", role: "creator", roleLabel: "创作者/KOL", online: true,
-    desc: "知乎科技领域头部答主，擅长数码评测和行业深度分析。", platforms: ["zhihu"], tags: ["科技","评测","深度内容"], followers: "18w" },
-  { id: "u17", name: "IG视觉创作者", avatar: "I", avatarBg: "", role: "creator", roleLabel: "创作者/摄影师", online: false,
-    desc: "Instagram视觉内容创作者，专注产品摄影和生活方式美学。", platforms: ["instagram","xhs"], tags: ["视觉","摄影","生活方式"], followers: "6.5w" },
-];
-
+const allUsers = [];
 // My friends (initially friends with some users)
-let myFriends = ["u1", "u2", "u4", "u6", "u9"];
+let myFriends = [];
 
 // Friend requests (incoming)
-let friendRequests = [
-  { from: "u3", message: "你好！想和你交流一下美食类内容的创作经验", time: "2小时前" },
-  { from: "u11", message: "看到你的账号，想聊聊品牌合作的可能性", time: "5小时前" },
-];
+let friendRequests = [];
 
 let currentFriendTab = "my";
 
@@ -4088,19 +3847,6 @@ document.querySelector('.profile-subnav').addEventListener('click', e => {
 let currentPostId = null;
 const postComments = {}; // postId -> [{author, text, time}]
 
-// Seed some comments
-(function seedComments() {
-  postComments['p1'] = [
-    { author: '运营老司机', text: '补充一点：还要检查是不是被系统判定为营销内容了', time: '1小时前' },
-    { author: '小红书小助手', text: '非常实用！收藏了 👏', time: '30分钟前' },
-  ];
-  postComments['p2'] = [
-    { author: '知识博主小李', text: '谢谢大家！有问题可以评论问我', time: '3小时前' },
-  ];
-  postComments['p3'] = [
-    { author: '品牌主理人阿Jay', text: '欢迎品牌方和达人来交流！', time: '10小时前' },
-  ];
-})();
 
 function fmtTime(ts){var d=new Date(ts);var now=new Date();var diff=Math.floor((now-d)/1000);if(diff<60)return"刚刚";if(diff<3600)return Math.floor(diff/60)+"分钟前";if(diff<86400)return Math.floor(diff/3600)+"小时前";if(diff<604800)return Math.floor(diff/86400)+"天前";return d.toLocaleDateString("zh-CN");}
 async function openPostDetail(postId) {
