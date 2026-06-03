@@ -2374,8 +2374,8 @@ function pollUpdates(){
     var _newReqs=[];if(d.friend_reqs&&d.friend_reqs.length>0){d.friend_reqs.forEach(function(fr){if(!_localReqActions[fr.from_user])_newReqs.push({from:fr.from_user,message:"",time:fmtTime(fr.created_at)});});}friendRequests.length=0;_newReqs.forEach(function(fr){friendRequests.push(fr);});updateFriendBadge();renderFriendsList();
     // Also sync sent requests
     sentRequests.length=0;if(d.sent_reqs&&d.sent_reqs.length>0){d.sent_reqs.forEach(function(sr){sentRequests.push({to:sr.to_user,time:""});});}
-    // Sync friends list from DB
-    if(d.my_friends){myFriends.length=0;d.my_friends.forEach(function(f){myFriends.push(f);});}
+    // Sync friends list from DB (only if data returned)
+    if(d.my_friends&&d.my_friends.length>0){myFriends.length=0;d.my_friends.forEach(function(f){myFriends.push(f);});}
 
     // Update stats & caps
     updateLiveStats();
