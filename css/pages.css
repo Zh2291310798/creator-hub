@@ -1590,3 +1590,157 @@ input, textarea, select { font: inherit; }
   .home-features{grid-template-columns:1fr;}
   .home-stat-item .num{font-size:32px;}
 }
+
+@media (max-width: 768px) {
+  .page {
+    width: min(100% - 18px, 1200px);
+    padding-bottom: 92px;
+  }
+  .topbar {
+    padding-bottom: 8px;
+  }
+  .brand-sub,
+  .user-mini span:not(.avatar):not(.level-badge-mini) {
+    display: none;
+  }
+  .tab-nav {
+    position: fixed;
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    z-index: 260;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
+    padding: 8px;
+    background: var(--white);
+    border: 3px solid var(--ink);
+    border-radius: var(--wobbly-md);
+    box-shadow: var(--shadow-big);
+  }
+  .tab-btn {
+    display: none;
+    justify-content: center;
+    min-width: 0;
+    min-height: 42px;
+    padding: 6px;
+    font-size: 0;
+    box-shadow: 2px 2px 0 0 var(--ink);
+  }
+  .tab-btn[data-tab="home"],
+  .tab-btn[data-tab="chat"],
+  .tab-btn[data-tab="match"],
+  .tab-btn[data-tab="community"],
+  .tab-btn[data-tab="deals"] {
+    display: inline-flex;
+  }
+  .tab-btn::before {
+    font-size: 22px;
+    line-height: 1;
+  }
+  .tab-btn[data-tab="home"]::before { content: "🎪"; }
+  .tab-btn[data-tab="chat"]::before { content: "💬"; }
+  .tab-btn[data-tab="match"]::before { content: "🤝"; }
+  .tab-btn[data-tab="community"]::before { content: "📝"; }
+  .tab-btn[data-tab="deals"]::before { content: "📋"; }
+  .tab-badge {
+    display: none !important;
+  }
+  .section-head,
+  .panel-header,
+  .card-foot,
+  .deal-bar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .chat-layout,
+  .match-columns,
+  .friends-layout,
+  .home-features,
+  .home-paths,
+  .profile-stats-row,
+  .local-grid,
+  .local-creators-grid,
+  .recruit-grid,
+  .post-grid,
+  .feed-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .chat-list {
+    max-height: 220px;
+  }
+  .chat-main {
+    min-height: 430px;
+  }
+  .form-row[style*="display:flex"] {
+    flex-direction: column;
+  }
+  .msg-dialog-card,
+  .onboarding-card,
+  .post-fullview {
+    width: min(94vw, 520px);
+    padding: 20px;
+  }
+  .notify-dropdown {
+    right: -8px;
+    width: min(92vw, 360px);
+  }
+}
+
+@media (max-width: 375px) {
+  body {
+    font-size: 15px;
+  }
+  .page {
+    width: calc(100% - 12px);
+  }
+  .brand-mark {
+    width: 42px;
+    height: 38px;
+    font-size: 20px;
+  }
+  .brand-title {
+    font-size: 19px;
+  }
+  .section-title {
+    font-size: 24px;
+  }
+  .new-hero-title {
+    font-size: 34px;
+  }
+  .btn,
+  .filter-btn,
+  .mini-btn,
+  .mini-btn-link {
+    max-width: 100%;
+    white-space: normal;
+  }
+  .card,
+  .post-card,
+  .form-card {
+    padding: 12px;
+  }
+  .tab-nav {
+    left: 6px;
+    right: 6px;
+    bottom: 6px;
+    gap: 4px;
+    padding: 6px;
+  }
+  .tab-btn {
+    min-height: 38px;
+  }
+  .tab-btn::before {
+    font-size: 20px;
+  }
+  .chat-input-area {
+    gap: 5px;
+  }
+  .chat-input-area input {
+    min-width: 0;
+  }
+  .emoji-btn {
+    width: 36px;
+    height: 36px;
+  }
+}

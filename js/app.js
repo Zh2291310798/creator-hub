@@ -2267,6 +2267,7 @@ async function completeOnboarding(){var title=document.getElementById('obPostTit
 // INIT
 // ========================================
 function init() {
+  ensureDealsUI();
   initHomepage();
   renderFeed();
   renderChatContacts();
