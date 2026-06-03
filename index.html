@@ -3982,7 +3982,7 @@ async function openPostDetail(postId) {
   });
   if(!cmts.length) h += '<p style="color:rgba(45,45,45,.4);">还没有评论，来说两句吧</p>';
   h += '</div>';
-  h += '<div class="post-full-input"><button class="btn" id="likeBtn" onclick="likePost(\''+p.id+'\')" style="background:#fff0f0;margin-bottom:8px;">'+(isLiked(p.id)?'❤️ 已赞':'👍 点赞')+' ('+(p.likes||0)+')</button><br>'; h += '<div class="post-full-input"><input type="text" id="commentInput" placeholder="写下你的评论...（Enter 发送）" /><button class="emoji-btn" onclick="toggleEmojiPicker(\'commentInput\', event)" title="表情">😊</button><button class="btn" onclick="addComment()">发送</button>';
+  h += '<div class="post-full-input"><button class="btn" id="likeBtn" onclick="likePost(\''+p.id+'\')" style="background:#fff0f0;margin-bottom:8px;">'+(isLiked(p.id)?'❤️ 已赞':'👍 点赞')+' ('+(p.likes||0)+')</button><br>'; h += '<div class="post-full-input"><input type="text" id="commentInput" placeholder="写下你的评论...（Enter 发送）" /><button class="emoji-btn" onclick="toggleEmojiPicker(&#39;commentInput&#39;, event)" title="表情">😊</button><button class="btn" onclick="addComment()">发送</button>';
   if(isMyPost) h += '<button class="btn" onclick="deletePost(\''+p.id+'\');closePostDetail();" style="background:#ffd6d6;margin-left:8px;">🗑 删除</button>';
   h += '</div></div>';
   document.body.insertAdjacentHTML('beforeend', h);
