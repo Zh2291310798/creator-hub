@@ -2291,7 +2291,7 @@ function setupRealtime(){
     .on("postgres_changes",{event:"INSERT",schema:"public",table:"world_messages"},
       function(p){renderWorldChat();})
     .subscribe();
-  sb.channel("comments-live").on("postgres_changes",{event:"DELETE",schema:"public",table:"comments"},function(p){if(p.old){var pid=p.old.post_id;if(postComments[pid]){var ci=postComments[pid].findIndex(function(x){return x.author===p.old.author&&x.text===p.old.content;});if(ci>=0){postComments[pid].splice(ci,1);var pp=posts.find(function(x){return x.id===pid;});if(pp)pp.comments=postComments[pid].length;renderPosts();}}}}).subscribe();
+  sb.channel("comments-live").on("postgres_changes",{event:"DELETE",schema:"public",table:"comments"},function(p){if(p.old){var pid=p.old.post_id;if(postComments[pid]){var ci=postComments[pid].findIndex(function(x){return x.author===p.old.author&&x.text===p.old.content;});if(ci>=0){postComments[pid].splice(ci,1);var pp=posts.find(function(x){return x.id===pid;});if(pp)pp.comments=postComments[pid].length;renderPosts();}}}}).on("postgres_changes",{event:"INSERT",schema:"public",table:"comments"},function(p){if(p.new){var pid=p.new.post_id;if(!postComments[pid])postComments[pid]=[];if(!postComments[pid].find(function(x){return x.author===p.new.author&&x.text===p.new.content;})){postComments[pid].push({author:p.new.author,text:p.new.content,time:fmtTime(p.new.created_at)});var pp=posts.find(function(x){return x.id===pid;});if(pp)pp.comments=postComments[pid].length;renderPosts();}}}).subscribe();
   sb.channel("notif-"+currentUser)
     .on("postgres_changes",{event:"INSERT",schema:"public",table:"notifications",filter:"username=eq."+currentUser},
       function(p){if(p.new){saveNotify(emoFor(p.new.type),p.new.from_user+' → '+p.new.content.slice(0,30),p.new.content,actFor(p.new.type));}updateNotifyBadge();})
@@ -2319,7 +2319,7 @@ function pollUpdates(){
     if(r.data&&r.data.length>0){renderChatMessages();updateChatBadge();renderChatContacts();}
   });
   sb.from("comments").select("*").gt("created_at",new Date(parseInt(since)).toISOString()).then(function(r){if(r.data&&r.data.length>0){r.data.forEach(function(c){if(!postComments[c.post_id])postComments[c.post_id]=[];if(!postComments[c.post_id].find(function(x){return x.author===c.author&&x.text===c.content;})){postComments[c.post_id].push({author:c.author,text:c.content,time:fmtTime(c.created_at)});var _pp=posts.find(function(x){return x.id===c.post_id;});if(_pp)_pp.comments=postComments[c.post_id].length;}});if(currentPostId&&postComments[currentPostId]){var _ov=document.getElementById("postFullview");if(_ov){var _ci=_ov.querySelector(".post-full-comments h3");if(_ci)_ci.textContent="💬 评论 ("+postComments[currentPostId].length+")";}}};renderPosts();});
-  var _pids=posts.map(function(x){return x.id;});if(_pids.length>0){sb.from("posts").select("id,likes,comment_count").in("id",_pids).then(function(r){if(r.data&&r.data.length>0){r.data.forEach(function(sp){var lp=posts.find(function(x){return x.id===sp.id;});if(lp&&lp.likes!==sp.likes){lp.likes=sp.likes||0;}});renderPosts();}});}
+  var _pids=posts.map(function(x){return x.id;});if(_pids.length>0){sb.from("posts").select("id,likes,comment_count").in("id",_pids).then(function(r){if(r.data&&r.data.length>0){r.data.forEach(function(sp){var lp=posts.find(function(x){return x.id===sp.id;});if(lp){if(lp.likes!==sp.likes)lp.likes=sp.likes||0;if(lp.comments!==sp.comment_count)lp.comments=sp.comment_count||0;}});renderPosts();}});}
   sb.from("recruits").select("*").gt("created_at",new Date(parseInt(since)).toISOString()).then(function(r){if(r.data&&r.data.length>0){r.data.forEach(function(rr){if(!recruits.find(function(x){return x.id===rr.id;})){recruits.unshift(rr);}});renderRecruits();}});sb.from("match_demands").select("*").gt("created_at",new Date(parseInt(since)).toISOString()).then(function(r){if(r.data&&r.data.length>0){r.data.forEach(function(md){var arr=md.role==="brand"?brandSeekingData:creatorSeekingData;if(!arr.find(function(x){return x.id===md.id;})){var nmd={id:md.id,title:md.title||md.description.slice(0,30),budget:md.budget||"面议",desc:md.description||"",platforms:typeof md.platforms==="string"?JSON.parse(md.platforms||"[]"):(md.platforms||[]),tags:typeof md.tags==="string"?JSON.parse(md.tags||"[]"):(md.tags||[]),detail:md.description||"",avatar:md.poster.slice(0,1),avatarBg:""};if(md.role==="brand"){nmd.brand=md.poster;}else{nmd.creator=md.poster;}arr.unshift(nmd);}});renderMatch();}});sb.from("local_demands").select("*").gt("created_at",new Date(parseInt(since)).toISOString()).then(function(r){if(r.data&&r.data.length>0){r.data.forEach(function(ld){if(!localDemands.find(function(x){return x.id===ld.id;})){localDemands.unshift(ld);}});renderLocalMatch();}});sessionStorage.setItem("_poll_since",Date.now()-5000);
 }
 
@@ -2359,7 +2359,7 @@ async function loadAllData(){
     var rpro=await sb.from("profiles").select("*");if(rpro.data&&rpro.data.length>0){allUsers.length=0;rpro.data.forEach(function(p){allUsers.push({id:p.username||p.id,name:p.username||"",avatar:(p.avatar_text||p.username||"?").slice(0,1),avatarBg:"",role:p.role||"creator",roleLabel:p.role_label||"",online:false,desc:p.bio||"",platforms:[],tags:[],followers:p.level?String.fromCharCode(76,118,46)+p.level:""});});}
   var rmd=await sb.from("match_demands").select("*").order("created_at",{ascending:false}).limit(50);if(rmd.data&&rmd.data.length>0){rmd.data.forEach(function(md){var arr=md.role==="brand"?brandSeekingData:creatorSeekingData;if(!arr.find(function(x){return x.id===md.id;})){var nmd2={id:md.id,title:md.description?md.description.slice(0,30):"",budget:md.budget||"面议",desc:md.description||"",platforms:typeof md.platforms==="string"?JSON.parse(md.platforms||"[]"):(md.platforms||[]),tags:[],detail:md.description||"",avatar:md.poster?md.poster.slice(0,1):"?",avatarBg:""};if(md.role==="brand"){nmd2.brand=md.poster;}else{nmd2.creator=md.poster;}arr.unshift(nmd2);}});}
   var rfr=await sb.from("friend_requests").select("*").eq("to_user",myProfile.name).eq("status","pending");if(rfr.data&&rfr.data.length>0){friendRequests.length=0;rfr.data.forEach(function(fr){friendRequests.push({from:fr.from_user,message:"",time:fmtTime(fr.created_at)});});}
-  var rwm=await sb.from("world_messages").select("*").order("created_at",{ascending:false}).limit(50);if(rwm.data&&rwm.data.length>0){rwm.data.reverse().forEach(function(wm){if(!worldMessages.find(function(x){return x.id===wm.id;})){worldMessages.push({sender:wm.sender,senderAvatar:wm.sender_avatar||wm.sender.slice(0,1),text:wm.content,time:fmtTime(wm.created_at)});}});}
+  var rwm=await sb.from("world_messages").select("*").order("created_at",{ascending:false}).limit(50);if(rwm.data&&rwm.data.length>0){rwm.data.reverse().forEach(function(wm){if(!worldMessages.find(function(x){return x.id===wm.id;})){var _wmm={sender:wm.sender,senderAvatar:wm.sender_avatar||wm.sender.slice(0,1),text:wm.content,time:fmtTime(wm.created_at)};worldMessages.push(_wmm);worldChat.push(_wmm);}});}
 sessionStorage.setItem("_poll_since",Date.now()-10000);
   updateLiveStats();
   setupRealtime();
@@ -2454,7 +2454,7 @@ function renderAvatarPicker() {
 }
 function saveAvatarChoice() {
   if (currentUser) {
-    sb.from("profiles").update({username:myProfile.name,role:myProfile.role,role_label:myProfile.roleLabel,city:myProfile.city||"",work_status:myProfile.workStatus||"",bio:myProfile.bio||"",avatar_choice:myAvatarChoice}).eq("username",myProfile.name).then(function(r){if(r.error)console.error("Avatar save failed:",r.error);});
+    sb.from("profiles").update({username:myProfile.name,role:myProfile.role,role_label:myProfile.roleLabel,city:myProfile.city||"",work_status:myProfile.workStatus||"",bio:myProfile.bio||"",avatar_choice:myAvatarChoice}).eq("username",_oldName).then(function(r){if(r.error)console.error("Avatar save failed:",r.error);});
   }
 }
 
@@ -2793,17 +2793,13 @@ function feedCardClick(type) {
 }
 
 function renderFeed() {
-  const items = [
-    { type: 'recruit', typeLabel: '招募', cls: 'recruit', title: '花漾美妆品牌急招小红书美妆达人', meta: '预算 ¥5,000-15,000/条 · 刚刚' },
-    { type: 'match', typeLabel: '对接', cls: 'match', title: '穿搭师Nina(10w粉) 开放服饰品牌合作', meta: '期望 ¥5,000+/条 · 12分钟前' },
-    { type: 'post', typeLabel: '帖子', cls: 'post', title: '小红书笔记限流的10个自查方法', meta: '运营老司机 · 238赞 · 2小时前' },
-    { type: 'chat', typeLabel: '动态', cls: 'chat', title: '美妆达人小A 与 品牌方达成合作意向', meta: '通过本平台对接 · 30分钟前' },
-    { type: 'post', typeLabel: '帖子', cls: 'post', title: '从0到10w粉——抖音知识类账号一年复盘', meta: '知识博主小李 · 412赞 · 5小时前' },
-    { type: 'recruit', typeLabel: '招募', cls: 'recruit', title: '星辰MCN招募全平台短视频编导', meta: '月薪 ¥15K-25K · 1小时前' },
-    { type: 'match', typeLabel: '对接', cls: 'match', title: '运动品牌跃动体育找抖音+快手带货主播', meta: '¥10,000-50,000/场 · 2小时前' },
-    { type: 'post', typeLabel: '帖子', cls: 'post', title: '品牌方找达人合作的5个坑，我都踩过了', meta: '品牌主理人阿Jay · 327赞 · 昨天' },
-  ];
-  document.getElementById('feedGrid').innerHTML = items.map((item, i) => `
+  var items = [];
+  recruits.filter(function(r){return r.status==="招募中"||r.statusClass==="active-recruit";}).slice(0,3).forEach(function(r){ items.push({type:"recruit",typeLabel:"招募",cls:"recruit",title:r.title,meta:(r.budget||"")+" · "+(r.city||"")}); });
+  posts.slice(0,4).forEach(function(p){ items.push({type:"post",typeLabel:"帖子",cls:"post",title:p.title,meta:p.maker+" · "+(p.likes||0)+"赞 · "+p.time}); });
+  brandSeekingData.concat(creatorSeekingData).slice(0,2).forEach(function(m){ var who=m.brand||m.creator||""; items.push({type:"match",typeLabel:"对接",cls:"match",title:m.title||m.desc||"",meta:who+" · "+(m.budget||"")}); });
+  if(items.length===0)items.push({type:"chat",typeLabel:"动态",cls:"chat",title:"欢迎来到 CreatorHub！",meta:"开始探索创作者生态"});
+  items=items.slice(0,8);
+    document.getElementById('feedGrid').innerHTML = items.map((item, i) => `
     <article class="feed-card" style="--tilt:${randTilt(i)};cursor:pointer;" onclick="feedCardClick('${item.type}')">
       <span class="feed-type ${item.cls}">${item.typeLabel}</span>
       <h3>${escapeHtml(item.title)}</h3>
@@ -2889,7 +2885,7 @@ function sendWorldMessage() {
   setTimeout(function(){
     var r = replies[Math.floor(Math.random()*replies.length)];
     var rt = String(new Date().getHours()).padStart(2,'0')+':'+String(new Date().getMinutes()).padStart(2,'0');
-    worldChat.push({ from:allUsers[Math.floor(Math.random()*allUsers.length)].name, text:r, time:rt });
+    worldChat.push({ from:(allUsers.length>0?allUsers[Math.floor(Math.random()*allUsers.length)].name:'网友'), text:r, time:rt });
     if (activeContact && activeContact.id === 'world') renderWorldChat();
     renderChatContacts();
   }, 1500 + Math.random()*2000);
@@ -3172,9 +3168,9 @@ function publishRecruit() {
   var fb = document.getElementById('rfFeedback');
   if (!title || !company || !desc) { fb.textContent = '标题、公司和描述不能为空！'; fb.style.color = 'var(--red)'; return; }
   var modeLabels = { fulltime: '全职', parttime: '兼职', project: '项目制', intern: '实习' };
-  sb.from("recruits").insert({id:"r"+Date.now(),title:title,poster:company,poster_avatar:company.slice(0,1),type:type,mode:modeLabels[mode]||mode,description:desc,detail:desc,budget:budget||"面议",city:city,platforms:platforms,tags:[],status:"招募中",status_class:"active-recruit"}).then(function(){});
+  var _rid="r"+Date.now();sb.from("recruits").insert({id:_rid,title:title,poster:company,poster_avatar:company.slice(0,1),type:type,mode:modeLabels[mode]||mode,description:desc,detail:desc,budget:budget||"面议",city:city,platforms:platforms,tags:[],status:"招募中",status_class:"active-recruit"}).then(function(){});
 recruits.unshift({
-    id: 'r' + Date.now(),
+    id: _rid,
     title: title,
     poster: company,
     avatar: company.slice(0, 1),
@@ -3310,7 +3306,7 @@ function publishLocalDemand() {
   var contact=document.getElementById('ldContact').value.trim();
   var fb=document.getElementById('ldFeedback');
   if(!bname||!city||!title||!desc){fb.textContent='商家名称、城市、标题和描述不能为空！';fb.style.color='var(--red)';return;}
-  localDemands.unshift({id:'ld'+Date.now(),businessName:bname,city:city,district:dist,category:cat,title:title,description:desc,budget:budget||'面议',requirements:reqs,contact:contact,postedBy:currentUser,postedAt:Date.now(),status:'open'});
+  var newDemand={id:'ld'+Date.now(),businessName:bname,city:city,district:dist,category:cat,title:title,description:desc,budget:budget||'面议',requirements:reqs,contact:contact,postedBy:currentUser,postedAt:Date.now(),status:'open'};localDemands.unshift(newDemand);
   localStorage.setItem('creatorhub_local_demands',JSON.stringify(localDemands));sb.from('local_demands').insert({id:newDemand.id,poster:myProfile.name,business_name:bname||'',city:city||'',district:dist||'',category:cat||'',title:title,description:desc,budget:budget||'面议',requirements:reqs||'',contact:contact||'',status:'open'}).then(function(r){if(r.error)console.error('Local demand insert failed:',r.error);});
   track('local_demand_publish',{city:city,category:cat,budget:budget});
   document.getElementById('ldBusiness').value='';document.getElementById('ldTitle').value='';document.getElementById('ldDesc').value='';document.getElementById('ldBudget').value='';document.getElementById('ldRequirements').value='';document.getElementById('ldContact').value='';document.getElementById('ldDistrict').value='';
@@ -3356,9 +3352,9 @@ document.getElementById('localFilters').addEventListener('click',function(e){
 });
 
 function deleteLocalDemand(did) {
-  if (!confirm('确定删除这条本地需求吗？')) return;
+  if (!confirm("确定删除这条本地需求吗？")) return;
   var idx = localDemands.findIndex(function(x) { return x.id === did; });
-  if (idx >= 0) { localDemands.splice(idx, 1); localStorage.setItem('creatorhub_local_demands', JSON.stringify(localDemands));sb.from("local_demands").insert({id:newDemand.id,poster:newDemand.poster,business_name:newDemand.businessName||"",city:newDemand.city||"",district:newDemand.district||"",category:newDemand.category||"",title:newDemand.title,description:newDemand.desc,budget:newDemand.budget||"",requirements:newDemand.requirements||"",contact:newDemand.contact||"",status:"open"}).then(function(r){if(r.error)console.error("Local demand insert failed:",r.error);}); renderLocalMatch(); showToast('已删除'); }
+  if (idx >= 0) { localDemands.splice(idx, 1); localStorage.setItem("creatorhub_local_demands", JSON.stringify(localDemands));sb.from("local_demands").delete().eq("id",did).then(function(r){if(r.error)console.error("Local demand delete failed:",r.error);}); renderLocalMatch(); showToast("已删除"); }
 }
 
 // ========================================
@@ -3383,7 +3379,7 @@ function createPost() {
   posts.unshift({
     id: 'p' + nextPostId++,
     title, category, categoryLabel: catLabels[category],
-    maker: '我', avatar: '我', time: '刚刚',
+    maker: myProfile.name||'我', avatar: '我', time: '刚刚',
     desc: content.slice(0, 80) + (content.length > 80 ? '...' : ''),
     platform: platform || 'all',
     likes: 0, comments: 0
@@ -3811,7 +3807,7 @@ function loadNotifySettings(){try{var s=JSON.parse(localStorage.getItem("creator
 }
 
 function saveProfile() {
-  myProfile.name = document.getElementById('setName').value.trim() || myProfile.name;
+  var _oldName=myProfile.name;myProfile.name = document.getElementById('setName').value.trim() || myProfile.name;
   myProfile.bio = document.getElementById('setBio').value.trim() || myProfile.bio;
   myProfile.role = document.getElementById('setRole').value;
   const roleMap = { creator:'创作者 / 达人', brand:'品牌方', recruiter:'招聘方', freelancer:'自由职业者', student:'🎓 在校学生 / 应届毕业生', career_switcher:'🆕 想转行入行' };
