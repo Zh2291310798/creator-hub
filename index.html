@@ -2315,7 +2315,7 @@ function setupRealtime(){
 			function(p){if(p.new){var ep=posts.find(function(x){return x.id===p.new.id;});if(ep){ep.likes=p.new.likes||0;ep.comments=p.new.comment_count||0;renderPosts();}}})
 		.on("postgres_changes",{event:"DELETE",schema:"public",table:"posts"},function(p){if(p.old){var idx=posts.findIndex(function(x){return x.id===p.old.id;});if(idx>=0){posts.splice(idx,1);renderPosts();}}}).subscribe();
   var _matchCh=sb.channel("match-live").on("postgres_changes",{event:"INSERT",schema:"public",table:"match_demands"},function(p){if(p.new){var arr=p.new.role==="brand"?brandSeekingData:creatorSeekingData;if(!arr.find(function(x){return x.id===p.new.id;})){var _nmd2={id:p.new.id,title:p.new.description?p.new.description.slice(0,30):"",budget:p.new.budget||"面议",desc:p.new.description||"",platforms:typeof p.new.platforms==="string"?JSON.parse(p.new.platforms||"[]"):(p.new.platforms||[]),tags:[],detail:p.new.description||"",avatar:p.new.poster?p.new.poster.slice(0,1):"?",avatarBg:""};if(p.new.role==="brand"){_nmd2.brand=p.new.poster;}else{_nmd2.creator=p.new.poster;}arr.unshift(_nmd2);renderMatch();}}}).on("postgres_changes",{event:"DELETE",schema:"public",table:"match_demands"},function(p){if(p.old){var _mdel=p.old.role==="brand"?brandSeekingData:creatorSeekingData;var _midx=_mdel.findIndex(function(x){return x.id===p.old.id;});if(_midx>=0){_mdel.splice(_midx,1);renderMatch();}}}).subscribe();
-  sb.channel("friend-req-"+currentUser).on("postgres_changes",{event:"INSERT",schema:"public",table:"friend_requests",filter:"to_user=eq."+currentUser},function(p){if(p.new&&!_localReqActions[p.new.from_user]&&!friendRequests.find(function(x){return x.from===p.new.from_user;})){friendRequests.push({from:p.new.from_user,message:"",time:fmtTime(p.new.created_at)});updateFriendBadge();renderFriendsList();}}).on("postgres_changes",{event:"DELETE",schema:"public",table:"friend_requests",filter:"to_user=eq."+currentUser},function(p){if(p.old){var _fi2=friendRequests.findIndex(function(x){return x.from===p.old.from_user;});if(_fi2>=0){friendRequests.splice(_fi2,1);updateFriendBadge();renderFriendsList();}}}).subscribe();
+  sb.channel("friend-req-"+currentUser).on("postgres_changes",{event:"INSERT",schema:"public",table:"friend_requests",filter:"to_user=eq."+currentUser},function(p){if(p.new&&!_localReqActions[p.new.from_user]&&!friendRequests.find(function(x){return x.from===p.new.from_user;})){friendRequests.push({from:p.new.from_user,message:p.new.message||"",time:fmtTime(p.new.created_at)});updateFriendBadge();renderFriendsList();}}).on("postgres_changes",{event:"DELETE",schema:"public",table:"friend_requests",filter:"to_user=eq."+currentUser},function(p){if(p.old){var _fi2=friendRequests.findIndex(function(x){return x.from===p.old.from_user;});if(_fi2>=0){friendRequests.splice(_fi2,1);updateFriendBadge();renderFriendsList();}}}).subscribe();
   sb.channel("friends-"+currentUser).on("postgres_changes",{event:"INSERT",schema:"public",table:"friends",filter:"username=eq."+currentUser},function(p){if(p.new&&!myFriends.includes(p.new.friend_name)){myFriends.push(p.new.friend_name);var _si=sentRequests.findIndex(function(s){return s.to===p.new.friend_name;});if(_si>=0)sentRequests.splice(_si,1);updateFriendBadge();renderFriendsList();}}).on("postgres_changes",{event:"DELETE",schema:"public",table:"friends",filter:"username=eq."+currentUser},function(p){if(p.old){var _fi=myFriends.indexOf(p.old.friend_name);if(_fi>=0){myFriends.splice(_fi,1);updateFriendBadge();renderFriendsList();}}}).subscribe();
   sb.channel("local-demands-live").on("postgres_changes",{event:"INSERT",schema:"public",table:"local_demands"},function(p){if(p.new&&!localDemands.find(function(x){return x.id===p.new.id;})){localDemands.unshift(p.new);renderLocalMatch();}}).on("postgres_changes",{event:"DELETE",schema:"public",table:"local_demands"},function(p){if(p.old){var _ldi=localDemands.findIndex(function(x){return x.id===p.old.id;});if(_ldi>=0){localDemands.splice(_ldi,1);renderLocalMatch();}}}).subscribe();
   console.log("Realtime channels subscribed for "+currentUser);
@@ -2371,7 +2371,7 @@ function pollUpdates(){
     if((d.world_msgs||[]).length>0){renderWorldChat();renderChatContacts();}
 
     // 10. Friend requests — atomic rebuild, skip locally handled
-    var _newReqs=[];if(d.friend_reqs&&d.friend_reqs.length>0){d.friend_reqs.forEach(function(fr){if(!_localReqActions[fr.from_user])_newReqs.push({from:fr.from_user,message:"",time:fmtTime(fr.created_at)});});}friendRequests.length=0;_newReqs.forEach(function(fr){friendRequests.push(fr);});updateFriendBadge();renderFriendsList();
+    var _newReqs=[];if(d.friend_reqs&&d.friend_reqs.length>0){d.friend_reqs.forEach(function(fr){if(!_localReqActions[fr.from_user])_newReqs.push({from:fr.from_user,message:fr.message||"",time:fmtTime(fr.created_at)});});}friendRequests.length=0;_newReqs.forEach(function(fr){friendRequests.push(fr);});updateFriendBadge();renderFriendsList();
     // Also sync sent requests
     sentRequests.length=0;if(d.sent_reqs&&d.sent_reqs.length>0){d.sent_reqs.forEach(function(sr){sentRequests.push({to:sr.to_user,time:""});});}
     // Sync friends list from DB (only if data returned)
@@ -2429,7 +2429,7 @@ async function loadAllData(){
   // Load my likes
   var rpl=await sb.from("post_likes").select("post_id").eq("username",myProfile.name);
   _myLikes={};if(rpl.data&&rpl.data.length>0){rpl.data.forEach(function(l){_myLikes[l.post_id]=true;});}
-  var rfr=await sb.from("friend_requests").select("*").eq("to_user",myProfile.name).eq("status","pending");var _newReqs=[];if(rfr.data&&rfr.data.length>0){rfr.data.forEach(function(fr){if(!_localReqActions[fr.from_user])_newReqs.push({from:fr.from_user,message:"",time:fmtTime(fr.created_at)});});}friendRequests.length=0;_newReqs.forEach(function(fr){friendRequests.push(fr);});
+  var rfr=await sb.from("friend_requests").select("*").eq("to_user",myProfile.name).eq("status","pending");var _newReqs=[];if(rfr.data&&rfr.data.length>0){rfr.data.forEach(function(fr){if(!_localReqActions[fr.from_user])_newReqs.push({from:fr.from_user,message:fr.message||"",time:fmtTime(fr.created_at)});});}friendRequests.length=0;_newReqs.forEach(function(fr){friendRequests.push(fr);});
   var rsf=await sb.from("friend_requests").select("to_user").eq("from_user",myProfile.name).eq("status","pending");if(rsf.data&&rsf.data.length>0){sentRequests.length=0;rsf.data.forEach(function(sr){sentRequests.push({to:sr.to_user,time:""});});}
   var rwm=await sb.from("world_messages").select("*").order("created_at",{ascending:false}).limit(50);if(rwm.data&&rwm.data.length>0){rwm.data.reverse().forEach(function(wm){if(!worldMessages.find(function(x){return x.id===wm.id;})){var _wmm={id:wm.id,sender:wm.sender,senderAvatar:wm.sender_avatar||wm.sender.slice(0,1),text:wm.content,time:fmtTime(wm.created_at)};worldMessages.push(_wmm);worldChat.push({from:wm.sender,text:wm.content,time:fmtTime(wm.created_at)});}});}
 sessionStorage.setItem("_poll_since",Date.now()-10000);
@@ -3451,11 +3451,24 @@ function createPost() {
 
 function _renderPostsCore(filter = 'all') {
   let items = filter === 'all' ? posts : posts.filter(p => p.category === filter);
-  dom.postGrid.innerHTML = items.map((p, i) => `
+  dom.postGrid.innerHTML = items.map((p, i) => {
+    var makerName = p.maker || '匿名用户';
+    var makerAvatar = p.avatar || makerName.slice(0,1);
+    var isMine = p.maker === myProfile.name;
+    var isFriend = myFriends.includes(p.maker);
+    var contactBtn = '';
+    if (!isMine && p.maker) {
+      if (isFriend) {
+        contactBtn = '<button class="mini-btn msg" onclick="event.stopPropagation();chatWithFriend(\'' + p.maker + '\')" title="私聊">💬 联系TA</button>';
+      } else {
+        contactBtn = '<button class="mini-btn add" onclick="event.stopPropagation();sendFriendRequest(\'' + p.maker + '\')" title="加好友接单">👥 加好友接单</button>';
+      }
+    }
+    return `
     <article class="post-card" style="--tilt:${randTilt(i)};--tape:${randTape(i)};cursor:pointer;" onclick="openPostDetail('${p.id}')">
       <span class="post-category ${p.category}">${p.categoryLabel}</span>
       <h3>${escapeHtml(p.title)}</h3>
-      ${p.platform && p.platform !== 'all' ? `<div class="platform-tags" style="margin:6px 0;">${platformTagHtml(p.platform)}</div>` : ''}
+      ${p.platform && p.platform !== 'all' ? '<div class="platform-tags" style="margin:6px 0;">' + platformTagHtml(p.platform) + '</div>' : ''}
       <p>${escapeHtml(p.desc)}</p>
       <div class="post-stats">
         <span onclick="event.stopPropagation();likePost('${p.id}')" style="cursor:pointer;" title="点赞">👍 ${p.likes}</span>
@@ -3463,14 +3476,15 @@ function _renderPostsCore(filter = 'all') {
       </div>
       <div class="card-foot">
         <div class="maker">
-          <span class="avatar">${p.avatar}</span>
-          <span onclick="event.stopPropagation();showFriendProfile('${p.maker}')" style="cursor:pointer;text-decoration:underline;font-weight:600;color:var(--red);" title="点击查看发布者主页">📝 ${escapeHtml(p.maker)}</span>
+          <span class="avatar">${makerAvatar}</span>
+          <span onclick="event.stopPropagation();showFriendProfile('${p.maker}')" style="cursor:pointer;text-decoration:underline;font-weight:600;color:var(--red);" title="点击查看发布者主页">📝 ${escapeHtml(makerName)}</span>
         </div>
         <span style="font-size:13px;color:rgba(45,45,45,.4);">${p.time}</span>
-        ${p.maker === '我' || p.maker === myProfile.name || isAdmin ? '<button class="mini-btn reject" onclick="event.stopPropagation();deletePost(\'' + p.id + '\')" title="删除">🗑</button>' : ''}
+        ${contactBtn}
+        ${isMine || isAdmin ? '<button class="mini-btn reject" onclick="event.stopPropagation();deletePost(\'' + p.id + '\')" title="删除">🗑</button>' : ''}
       </div>
     </article>
-  `).join('');
+  `;}).join('');
 }
 
 var _renderTimer=null;
@@ -3612,7 +3626,7 @@ function renderFriendsList() {
           <span class="avatar" style="${avatarStyle(r.user.name)}">${r.user.avatar}</span>
           <div class="friend-item-info">
             <div class="name">${escapeHtml(r.user.name)}</div>
-            <div class="brief">${escapeHtml(r.message)} · ${r.time}</div>
+            <div class="brief">📩 ${escapeHtml(r.message || '想加你为好友')} · ${r.time}</div>
           </div>
           <div class="friend-item-actions">
             <button class="mini-btn accept" onclick="acceptRequest('${r.from}')">接受</button>
@@ -3678,8 +3692,13 @@ function sendFriendRequest(uid) {
   if (sentRequests.some(function(s){return s.to===uid;})) { showToast('已经发送过好友请求了，等待对方回应'); return; }
   if (friendRequests.some(function(r){return r.from===uid;})) { showToast('对方已经向你发送了好友请求，请直接接受'); return; }
   const user = allUsers.find(u => u.id === uid);
-  sentRequests.push({to:uid,time:'刚刚'});sb.from("friend_requests").upsert({from_user:myProfile.name,to_user:uid,status:"pending"},{onConflict:"from_user,to_user"}).then(function(r){if(r.error)console.error("Friend request failed:",r.error);});
-  deliverNotification(uid,'👥 好友请求：想加你为好友，一起交流！','好友请求');
+  // Prompt for message explaining why they want to add this friend
+  var msg = prompt('请输入加好友的来意（例如：看到你的帖子想合作、对你的内容感兴趣等）：', '你好！想认识一下，一起交流合作 🤝');
+  if (msg === null) return; // user cancelled
+  msg = msg.trim() || '你好！想认识一下，一起交流合作 🤝';
+  sentRequests.push({to:uid,time:'刚刚'});
+  sb.from("friend_requests").upsert({from_user:myProfile.name,to_user:uid,status:"pending",message:msg},{onConflict:"from_user,to_user"}).then(function(r){if(r.error)console.error("Friend request failed:",r.error);});
+  deliverNotification(uid,'👥 好友请求：'+msg,'好友请求');
   renderFriendsList();
   showFriendProfile(uid);
   showToast('已向 '+user.name+' 发送好友请求，对方将在聊天中收到通知 💌');
@@ -3767,8 +3786,12 @@ function quickAddFriend(name) {
     showToast('已经发送或收到过好友请求了');
     return;
   }
-  sentRequests.push({to:user.id,time:'刚刚'});sb.from("friend_requests").upsert({from_user:myProfile.name,to_user:user.id,status:"pending"},{onConflict:"from_user,to_user"}).then(function(r){if(r.error)console.error("Friend request failed:",r.error);});
-  deliverNotification(user.id,'👥 好友请求：想加你为好友，一起交流！','好友请求');
+  var msg = prompt('请输入加好友的来意（例如：看到你的帖子想合作、对你的内容感兴趣等）：', '你好！想认识一下，一起交流合作 🤝');
+  if (msg === null) return;
+  msg = msg.trim() || '你好！想认识一下，一起交流合作 🤝';
+  sentRequests.push({to:user.id,time:'刚刚'});
+  sb.from("friend_requests").upsert({from_user:myProfile.name,to_user:user.id,status:"pending",message:msg},{onConflict:"from_user,to_user"}).then(function(r){if(r.error)console.error("Friend request failed:",r.error);});
+  deliverNotification(user.id,'👥 好友请求：'+msg,'好友请求');
   showToast('已向 '+user.name+' 发送好友请求，对方将在聊天中收到通知 💌');
 }
 
@@ -3856,6 +3879,7 @@ function renderProfile() {
         <h3>${escapeHtml(p.title)}</h3>
         <p>${escapeHtml(p.desc)}</p>
         <div class="post-stats"><span onclick="event.stopPropagation();likePost('${p.id}')" style="cursor:pointer;" title="点赞">👍 ${p.likes}</span><span>💬 ${(postComments[p.id]||[]).length||p.comments||0}</span><span>${p.time}</span></div>
+        <div class="card-foot"><div class="maker"><span class="avatar">${p.avatar || (p.maker||'我').slice(0,1)}</span><span>📝 ${escapeHtml(p.maker || myProfile.name)}</span></div></div>
       </article>
     `).join('');
 
@@ -3957,11 +3981,22 @@ async function openPostDetail(postId) {
   h += '<span class="post-category '+p.category+'">'+p.categoryLabel+'</span>';
   if(pHtml) h += '<div class="platform-tags" style="margin-top:8px;">'+pHtml+'</div>';
   h += '<h1 class="post-full-title">'+escapeHtml(p.title)+'</h1>';
-  h += '<div class="post-full-meta"><span class="avatar" style="'+avatarStyle(p.maker)+';display:inline-grid;width:36px;height:36px;vertical-align:middle;margin-right:8px;cursor:pointer;" onclick="event.stopPropagation();showFriendProfile(\''+p.maker+'\')">'+p.avatar+'</span> <span style="cursor:pointer;text-decoration:underline;" onclick="event.stopPropagation();showFriendProfile(\''+p.maker+'\')">'+escapeHtml(p.maker)+'</span> · '+p.time+' · 👍 '+p.likes+' · 💬 '+p.comments+'</div>';
-h += '<div style="margin:8px 0;">';
-if(p.maker!==myProfile.name&&!myFriends.includes(p.maker))h+='<button class="btn" onclick="event.stopPropagation();sendFriendRequest(\''+p.maker+'\')" style="font-size:14px;margin-right:6px;">👥 加好友</button>';
-if(p.maker!==myProfile.name)h+='<button class="btn" onclick="event.stopPropagation();chatWithFriend(\''+p.maker+'\')" style="font-size:14px;">💬 私聊</button>';
-h+='</div></div>';
+  var _makerName = p.maker || '匿名用户';
+  var _makerAvatar = p.avatar || _makerName.slice(0,1);
+  h += '<div class="post-full-meta"><span class="avatar" style="'+avatarStyle(_makerName)+';display:inline-grid;width:36px;height:36px;vertical-align:middle;margin-right:8px;cursor:pointer;" onclick="event.stopPropagation();showFriendProfile(\''+p.maker+'\')">'+_makerAvatar+'</span> <span style="cursor:pointer;text-decoration:underline;font-weight:600;color:var(--red);" onclick="event.stopPropagation();showFriendProfile(\''+p.maker+'\')">📝 '+escapeHtml(_makerName)+'</span> · '+p.time+' · 👍 '+p.likes+' · 💬 '+p.comments+'</div>';
+  h += '<div style="margin:10px 0;padding:10px 14px;background:var(--postit);border-radius:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">';
+  h += '<span style="font-size:14px;font-weight:600;">📞 想合作接单？</span>';
+  if(p.maker!==myProfile.name&&p.maker){
+    if(myFriends.includes(p.maker)){
+      h+='<button class="btn" onclick="event.stopPropagation();chatWithFriend(\''+p.maker+'\')" style="font-size:14px;">💬 私聊TA</button>';
+    } else {
+      h+='<button class="btn" onclick="event.stopPropagation();sendFriendRequest(\''+p.maker+'\')" style="font-size:14px;margin-right:6px;">👥 加好友接单</button>';
+      h+='<span style="font-size:12px;color:rgba(45,45,45,.5);">（加好友后才能私聊）</span>';
+    }
+  } else {
+    h+='<span style="font-size:13px;color:rgba(45,45,45,.5);">这是你的帖子</span>';
+  }
+  h+='</div></div>';
   h += '<div class="post-full-body"><p>'+escapeHtml(p.desc)+'</p><p style="color:rgba(45,45,45,.5);margin-top:16px;">（完整文章...支持长文、图片、Markdown）</p></div>';
   h += '<div class="post-full-comments"><h3>💬 评论 ('+cmts.length+')</h3>';
   cmts.forEach(function(c,i){
@@ -3972,7 +4007,7 @@ h+='</div></div>';
   if(!cmts.length) h += '<p style="color:rgba(45,45,45,.4);">还没有评论，来说两句吧</p>';
   h += '</div>';
   h += '<div class="post-full-input"><button class="btn" id="likeBtn" onclick="likePost(\''+p.id+'\')" style="background:#fff0f0;margin-bottom:8px;">'+(isLiked(p.id)?'❤️ 已赞':'👍 点赞')+' ('+(p.likes||0)+')</button><br>'; h += '<div class="post-full-input"><input type="text" id="commentInput" placeholder="写下你的评论...（Enter 发送）" /><button class="emoji-btn" onclick="toggleEmojiPicker(&#39;commentInput&#39;, event)" title="表情">😊</button><button class="btn" onclick="addComment()">发送</button>';
-  if(isMyPost) h += '<button class="btn" onclick="deletePost(\''+p.id+'\');closePostDetail();" style="background:#ffd6d6;margin-left:8px;">🗑 删除</button>';
+  if(isMyPost||isAdmin) h += '<button class="btn" onclick="deletePost(\''+p.id+'\');closePostDetail();" style="background:#ffd6d6;margin-left:8px;">🗑 删除</button>';
   h += '</div></div>';
   document.body.insertAdjacentHTML('beforeend', h);
   setTimeout(function(){ var ci=document.getElementById('commentInput');if(ci)ci.focus(); },300);

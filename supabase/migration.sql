@@ -179,9 +179,18 @@ CREATE TABLE IF NOT EXISTS friend_requests (
   from_user TEXT NOT NULL,
   to_user TEXT NOT NULL,
   status TEXT DEFAULT 'pending',
+  message TEXT DEFAULT '',
   created_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(from_user, to_user)
 );
+
+-- Add message column if table already exists (idempotent migration)
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='friend_requests' AND column_name='message') THEN
+    ALTER TABLE friend_requests ADD COLUMN message TEXT DEFAULT '';
+  END IF;
+END $$;
 
 -- ============================================
 -- 10. XP
@@ -350,3 +359,111 @@ ON CONFLICT (id) DO NOTHING;
 -- ============================================
 -- 看到 "Success. No rows returned" 即完成
 -- 然后告诉我，我会接着改造前端代码
+
+-- ============================================
+-- v1.0.2 更新：好友请求加备注 + RPC 更新
+-- ============================================
+
+-- 更新 RPC 函数 get_poll_updates，让 friend_reqs 返回 message 字段
+CREATE OR REPLACE FUNCTION get_poll_updates(
+  since_ts TIMESTAMPTZ,
+  username_query TEXT,
+  post_ids TEXT[]
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  result JSONB;
+  new_posts JSONB;
+  notifs JSONB;
+  chat_msgs JSONB;
+  new_comments JSONB;
+  likes_sync JSONB;
+  new_recruits JSONB;
+  new_matches JSONB;
+  new_local JSONB;
+  world_msgs JSONB;
+  friend_reqs JSONB;
+  sent_reqs JSONB;
+  my_friends JSONB;
+BEGIN
+  -- 1. New posts since timestamp
+  SELECT COALESCE(jsonb_agg(row_to_json(p)), '[]'::jsonb)
+  INTO new_posts
+  FROM (SELECT * FROM posts WHERE created_at > since_ts ORDER BY created_at DESC LIMIT 30) p;
+
+  -- 2. Notifications
+  SELECT COALESCE(jsonb_agg(row_to_json(n)), '[]'::jsonb)
+  INTO notifs
+  FROM (SELECT * FROM notifications WHERE username = username_query AND created_at > since_ts ORDER BY created_at DESC LIMIT 20) n;
+
+  -- 3. Chat messages
+  SELECT COALESCE(jsonb_agg(row_to_json(m)), '[]'::jsonb)
+  INTO chat_msgs
+  FROM (SELECT * FROM chat_messages WHERE (sender = username_query OR recipient = username_query) AND created_at > since_ts ORDER BY created_at ASC LIMIT 50) m;
+
+  -- 4. New comments
+  SELECT COALESCE(jsonb_agg(row_to_json(c)), '[]'::jsonb)
+  INTO new_comments
+  FROM (SELECT * FROM comments WHERE created_at > since_ts ORDER BY created_at ASC LIMIT 50) c;
+
+  -- 5. Likes sync (for all loaded posts)
+  SELECT COALESCE(jsonb_agg(row_to_json(pl)), '[]'::jsonb)
+  INTO likes_sync
+  FROM (SELECT id, likes, comment_count FROM posts WHERE id = ANY(post_ids)) pl;
+
+  -- 6. New recruits
+  SELECT COALESCE(jsonb_agg(row_to_json(r)), '[]'::jsonb)
+  INTO new_recruits
+  FROM (SELECT * FROM recruits WHERE created_at > since_ts ORDER BY created_at DESC LIMIT 20) r;
+
+  -- 7. New match demands
+  SELECT COALESCE(jsonb_agg(row_to_json(md)), '[]'::jsonb)
+  INTO new_matches
+  FROM (SELECT * FROM match_demands WHERE created_at > since_ts ORDER BY created_at DESC LIMIT 20) md;
+
+  -- 8. New local demands
+  SELECT COALESCE(jsonb_agg(row_to_json(ld)), '[]'::jsonb)
+  INTO new_local
+  FROM (SELECT * FROM local_demands WHERE created_at > since_ts ORDER BY created_at DESC LIMIT 20) ld;
+
+  -- 9. World messages
+  SELECT COALESCE(jsonb_agg(row_to_json(wm)), '[]'::jsonb)
+  INTO world_msgs
+  FROM (SELECT * FROM world_messages WHERE created_at > since_ts ORDER BY created_at DESC LIMIT 30) wm;
+
+  -- 10. Friend requests (incoming — to me)
+  SELECT COALESCE(jsonb_agg(row_to_json(fr)), '[]'::jsonb)
+  INTO friend_reqs
+  FROM (SELECT from_user, message, status, created_at FROM friend_requests WHERE to_user = username_query AND status = 'pending' ORDER BY created_at DESC LIMIT 50) fr;
+
+  -- 11. Sent requests (outgoing — from me)
+  SELECT COALESCE(jsonb_agg(row_to_json(sr)), '[]'::jsonb)
+  INTO sent_reqs
+  FROM (SELECT to_user, status, created_at FROM friend_requests WHERE from_user = username_query AND status = 'pending' ORDER BY created_at DESC LIMIT 50) sr;
+
+  -- 12. My friends
+  SELECT COALESCE(jsonb_agg(friend_name), '[]'::jsonb)
+  INTO my_friends
+  FROM (SELECT friend_name FROM friends WHERE username = username_query ORDER BY created_at DESC) f;
+
+  result := jsonb_build_object(
+    'new_posts', new_posts,
+    'notifs', notifs,
+    'chat_msgs', chat_msgs,
+    'new_comments', new_comments,
+    'likes_sync', likes_sync,
+    'new_recruits', new_recruits,
+    'new_matches', new_matches,
+    'new_local', new_local,
+    'world_msgs', world_msgs,
+    'friend_reqs', friend_reqs,
+    'sent_reqs', sent_reqs,
+    'my_friends', my_friends
+  );
+
+  RETURN result;
+END;
+$$;
