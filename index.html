@@ -2321,7 +2321,7 @@ function pollUpdates(){
   function saveCursor(){if(maxCreated){sessionStorage.setItem("_poll_cursor",maxCreated);}}
   sb.from("posts").select("*").gt("created_at",cursor).then(function(r){
     noteCreated(r.data);
-    if(r.data&&r.data.length>0){r.data.forEach(function(p){if(!posts.find(function(x){return x.id===p.id;})){posts.unshift({id:p.id,title:p.title,category:p.category,categoryLabel:p.category_label||"其他",maker:p.author,avatar:p.author_avatar,time:"刚刚",desc:p.content,platform:p.platform||"all",likes:p.likes||0,comments:p.comment_count||0});}});renderPosts("all");}
+    if(r.data&&r.data.length>0){r.data.forEach(function(p){if(!posts.find(function(x){return x.id===p.id;})){posts.push({id:p.id,title:p.title,category:p.category,categoryLabel:p.category_label||"其他",maker:p.author,avatar:p.author_avatar,time:"刚刚",desc:p.content,platform:p.platform||"all",likes:p.likes||0,comments:p.comment_count||0});}});renderPosts("all");}
     saveCursor();
   });
   sb.from("notifications").select("*").eq("username",currentUser).gt("created_at",cursor).then(function(r){
@@ -2345,7 +2345,7 @@ async function loadAllData(){
   if(!currentUser)return;
   // Load posts
   var rp=await sb.from("posts").select("*").order("created_at",{ascending:false}).limit(100);
-  if(rp.data&&rp.data.length>0){rp.data.forEach(function(p){if(!posts.find(function(x){return x.id===p.id;})){posts.unshift({id:p.id,title:p.title,category:p.category,categoryLabel:p.category_label||'其他',maker:p.author||p.maker,avatar:p.author_avatar||p.avatar,time:(function(t){var d=new Date(t);return d.toLocaleDateString('zh-CN',{month:'numeric',day:'numeric'})+' '+d.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})})(p.created_at),desc:p.content||p.desc,platform:p.platform||'all',likes:p.likes||0,comments:p.comment_count||0,tags:p.tags});}});renderPosts("all");}
+  if(rp.data&&rp.data.length>0){rp.data.forEach(function(p){if(!posts.find(function(x){return x.id===p.id;})){posts.push({id:p.id,title:p.title,category:p.category,categoryLabel:p.category_label||'其他',maker:p.author||p.maker,avatar:p.author_avatar||p.avatar,time:(function(t){var d=new Date(t);return d.toLocaleDateString('zh-CN',{month:'numeric',day:'numeric'})+' '+d.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})})(p.created_at),desc:p.content||p.desc,platform:p.platform||'all',likes:p.likes||0,comments:p.comment_count||0,tags:p.tags});}});renderPosts("all");}
   // Load recruits
   var rr=await sb.from("recruits").select("*").order("created_at",{ascending:false}).limit(50);
   if(rr.data&&rr.data.length>0){rr.data.forEach(function(r){if(!recruits.find(function(x){return x.id===r.id;}))recruits.unshift(r);});}
@@ -2863,6 +2863,7 @@ function handleImageUpload(e) {
 // UTILS
 // ========================================
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];});}
+function safeArray(v){return Array.isArray(v)?v:[];}
 function randTilt(i){return [-0.5,0.3,-0.3,0.4,-0.4,0.2][i%6]+"deg";}
 function randTape(i){return [-1.5,1,-1,1.5,-0.5,2][i%6]+"deg";}
 function platformTagHtml(p){var m={xhs:["小红书","xhs"],douyin:["抖音","douyin"],kuaishou:["快手","kuaishou"],bilibili:["B站","bilibili"],wechat:["视频号","wechat"],weibo:["微博","weibo"],youtube:["YouTube","youtube"],tiktok:["TikTok","tiktok"],instagram:["Instagram","instagram"],taobao:["淘宝","taobao"],pdd:["拼多多","pdd"],zhihu:["知乎","zhihu"],dewu:["得物","dewu"],xigua:["西瓜视频","xigua"],all:["全平台","all"]};var x=m[p]||["全平台","all"];return '<span class="platform-tag '+x[1]+'">'+x[0]+"</span>";}
@@ -3035,12 +3036,13 @@ var worldChat = [
 function renderChatContacts() {
   const list = document.getElementById('chatContactList');
   var isWorldActive = activeContact && activeContact.id === 'world';
+  var lastMsg = worldChat.length > 0 ? worldChat[worldChat.length-1] : null;
   list.innerHTML = `
     <div class="chat-contact world-channel${isWorldActive ? ' active' : ''}" onclick="selectWorldChat()">
       <span class="avatar" style="background:linear-gradient(135deg,#ff9a9e,#fad0c4,#fad0c4,#ffd1ff,#a18cd1);font-size:24px;">🌍</span>
       <div class="chat-contact-info">
         <div class="name" style="color:var(--red);font-weight:700;">世界频道</div>
-        <div class="last-msg">${escapeHtml(worldChat[worldChat.length-1].from + '：' + worldChat[worldChat.length-1].text.slice(0,20))}</div>
+        <div class="last-msg">${lastMsg ? escapeHtml(lastMsg.from + '：' + lastMsg.text.slice(0,20)) : '暂无消息'}</div>
       </div>
       <span style="font-size:12px;color:var(--sage);">${worldChat.length}条</span>
     </div>
@@ -3323,11 +3325,15 @@ handleTopbarWrap();
 function renderRecruits(filter = 'all') {
   track('recruit_view',{filter:filter});
   let items = filter === 'all' ? recruits : recruits.filter(r => {
+    var platforms = safeArray(r.platforms);
     if (['urgent','maker','merchant','tech'].includes(filter)) return r.type === filter || r.statusClass === filter;
-    if (filter === 'all-plat') return r.platforms.length > 1;
-    return r.platforms.includes(filter);
+    if (filter === 'all-plat') return platforms.length > 1;
+    return platforms.includes(filter);
   });
-  document.getElementById('recruitGrid').innerHTML = items.map((r, i) => `
+  document.getElementById('recruitGrid').innerHTML = items.map((r, i) => {
+    var platforms = safeArray(r.platforms);
+    var tags = safeArray(r.tags);
+    return `
     <article class="card" style="--tilt:${randTilt(i)};--tape:${randTape(i)}">
       <div class="card-top">
         <span class="card-status ${r.statusClass}">${r.status}</span>
@@ -3336,8 +3342,8 @@ function renderRecruits(filter = 'all') {
       <h3>${escapeHtml(r.title)}</h3>
       <div class="budget">${escapeHtml(r.budget)}${r.mode ? ' · '+escapeHtml(r.mode) : ''}${r.city ? ' · 📍'+escapeHtml(r.city) : ''}</div>
       <p class="desc">${escapeHtml(r.desc)}</p>
-      <div class="platform-tags">${r.platforms.map(platformTagHtml).join('')}</div>
-      <div class="tags">${r.tags.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>
+      <div class="platform-tags">${platforms.map(platformTagHtml).join('')}</div>
+      <div class="tags">${tags.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>
       <div class="card-foot">
         <div class="maker">
           <span class="avatar ${escapeHtml(r.avatarBg)}">${escapeHtml(r.avatar)}</span>
@@ -3347,7 +3353,8 @@ function renderRecruits(filter = 'all') {
         <button class="mini-btn-link" data-friend-name="${escapeHtml(r.poster)}" title="加好友">👥</button>
       </div>
     </article>
-  `).join('');
+  `;
+  }).join('');
 }
 document.getElementById('recruitGrid').addEventListener('click', function(e) {
   var recruitBtn = e.target.closest('[data-recruit-id]');
@@ -3372,8 +3379,8 @@ function openRecruitDrawer(id) {
   document.getElementById('drawerDetail').textContent = r.detail;
   document.getElementById('drawerBudget').textContent = r.budget;
   document.getElementById('drawerPoster').textContent = r.poster;
-  document.getElementById('drawerPlatforms').innerHTML = r.platforms.map(platformTagHtml).join('');
-  document.getElementById('drawerTags').innerHTML = r.tags.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('');
+  document.getElementById('drawerPlatforms').innerHTML = safeArray(r.platforms).map(platformTagHtml).join('');
+  document.getElementById('drawerTags').innerHTML = safeArray(r.tags).map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('');
   // Restore recruit actions
   document.getElementById('drawerActions').innerHTML =
     '<button class="btn" onclick="deliverNotification(\''+escapeHtml(r.poster)+'\',\'💼 招募意向：对「'+escapeHtml(r.title)+'」感兴趣\',\'招募\');showToast(\'已发送意向！对方将在聊天中收到通知 💌\');addXP(30,\'招募意向\');" style="font-size:18px;">🤝 我有意向</button>' +
