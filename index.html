@@ -4001,7 +4001,6 @@ function closePostDetail() {
 }
 
 
-var _myLikes = {};
 function isLiked(postId){return !!_myLikes[postId];}
 var _likeLock={};
 function toggleLike(postId){var p=posts.find(function(x){return x.id===postId;});if(!p||!currentUser)return;var liked=isLiked(postId);if(liked){_myLikes[postId]=false;p.likes=Math.max(0,(p.likes||0)-1);_likeLock[postId]=Date.now();sb.from("post_likes").delete().eq("post_id",postId).eq("username",myProfile.name).then(function(r){if(r.error)console.error("Unlike failed:",r.error);});sb.from("posts").update({likes:p.likes}).eq("id",postId).then(function(r){if(r.error)console.error("Unlike count failed:",r.error);});var lb=document.getElementById("likeBtn");if(lb)lb.textContent="👍 点赞 ("+p.likes+")";}else{_myLikes[postId]=true;p.likes=(p.likes||0)+1;_likeLock[postId]=Date.now();sb.from("post_likes").insert({post_id:postId,username:myProfile.name}).then(function(r){if(r.error)console.error("Like failed:",r.error);});sb.from("posts").update({likes:p.likes}).eq("id",postId).then(function(r){if(r.error)console.error("Like count failed:",r.error);});if(p.maker&&p.maker!==myProfile.name){deliverNotification(p.maker,"❤️ 赞了你的帖子：「"+p.title.slice(0,30)+"」","点赞");}track("post_like",{post_id:postId});addXP(5,"点赞");var lb=document.getElementById("likeBtn");if(lb)lb.textContent="👍 已赞 ("+p.likes+")";}renderPosts();}
