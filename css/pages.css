@@ -252,6 +252,19 @@ input, textarea, select { font: inherit; }
   margin: 3px 0 0;
   color: rgba(45,45,45,.68);
 }
+.invite-link-box {
+  margin: 12px 0;
+  padding: 12px;
+  background: var(--gray);
+  border: 2px dashed var(--ink);
+  border-radius: var(--wobbly-sm);
+  word-break: break-all;
+  text-align: center;
+  font-size: 14px;
+}
+.invite-card {
+  transform: rotate(.2deg);
+}
 .tab-badge {
   display: inline-flex;
   place-items: center;

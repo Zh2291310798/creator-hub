@@ -44,6 +44,7 @@ var myProfileId=null;
 
 // Supabase session -> local state
 async function loadSession(user){
+  captureInviteCode();
   currentUser=user.user_metadata.username||user.email.split('@')[0];
   myProfileId=user.id;
   var _a=await sb.from('profiles').select('*').eq('id',user.id).single();
@@ -78,11 +79,13 @@ async function loadSession(user){
   renderProfile();updateLevelDisplay();updateMyAvatar();
   await checkOnboarding();
   await checkNotifications();
+  await processInviteCode();
   updateNotifyBadge();
   showToast('欢迎回来，'+myProfile.name+'！👋');
 }
 
 async function initAuth(){
+  captureInviteCode();
   var _s=await sb.auth.getSession();
   if(_s.data.session&&_s.data.session.user){
     await loadSession(_s.data.session.user);
@@ -106,6 +109,7 @@ async function doLogin(){
 }
 
 async function doRegister(){
+  captureInviteCode();
   var email=document.getElementById('regEmail').value.trim();
   var user=document.getElementById('regUser').value.trim();
   var pass=document.getElementById('regPass').value.trim();
@@ -814,6 +818,14 @@ function setStar(el,dim,val){_reviewRatings[dim]=val;var row=el.parentElement;ro
 async function submitReview(dealId,reviewee,role){var ratings={};var dimKeys=role==='brand_review_creator'?['content_quality','communication','professionalism','data_performance']:['brief_clarity','payment_timeliness','cooperation_experience'];for(var i=0;i<dimKeys.length;i++){if(!_reviewRatings[dimKeys[i]]){showToast('请给所有维度评分','error');return;}ratings[dimKeys[i]]=_reviewRatings[dimKeys[i]];}var comment=document.getElementById('reviewComment')?document.getElementById('reviewComment').value.trim():'';var gate=await sb.rpc('can_review',{p_reviewer:currentUser,p_reviewee:reviewee,p_deal_id:dealId});if(gate.error){showToast('评价条件检查失败','error');return;}if(!gate.data){showToast('不满足评价条件（需要至少5条聊天记录且未评价过）','error');return;}var res=await sb.from('reviews').insert({deal_id:dealId,reviewer:currentUser,reviewee:reviewee,role:role,ratings:ratings,comment:comment});if(res.error){showToast('评价失败: '+res.error.message,'error');return;}await sb.rpc('calc_trust_score',{p_username:reviewee}).then(function(r){if(r.data!=null)sb.from('profiles').update({trust_score:r.data}).eq('username',reviewee).then(function(){});});closeModal();showToast('评价成功！','success');_reviewRatings={};renderProfileReviews();}
 function ensureProfileReviewsMount(){var el=document.getElementById('profileReviews');if(el)return el;var home=document.getElementById('profileHome');if(!home)return null;var firstSection=home.querySelector('.profile-section');el=document.createElement('div');el.id='profileReviews';if(firstSection)home.insertBefore(el,firstSection);else home.appendChild(el);return el;}
 function renderProfileReviews(){var mount=ensureProfileReviewsMount();if(!mount||!currentUser)return;mount.innerHTML='<div class="card profile-section review-summary"><h3>⭐ 合作评价</h3><p class="hint">正在加载最近评价...</p></div>';sb.from('reviews').select('*').eq('reviewee',currentUser).order('created_at',{ascending:false}).limit(10).then(function(r){if(r.error){mount.innerHTML='<div class="card profile-section review-summary"><h3>⭐ 合作评价</h3><p class="hint">评价加载失败，请稍后重试</p></div>';showLoadError(r.error);return;}var reviews=r.data||[];if(!reviews.length){mount.innerHTML='<div class="card profile-section review-summary"><h3>⭐ 合作评价</h3><p class="hint">还没有合作评价，完成一次对接后就会出现在这里</p></div>';return;}var avg=reviews.reduce(function(sum,rev){var vals=Object.values(rev.ratings||{});if(!vals.length)return sum;return sum+vals.reduce(function(a,b){return a+Number(b||0);},0)/vals.length;},0)/reviews.length;mount.innerHTML='<div class="card profile-section review-summary"><h3>⭐ '+avg.toFixed(1)+' ('+reviews.length+'次合作)</h3>'+reviews.slice(0,3).map(function(rev){return '<div class="review-item"><b>'+escapeHtml(rev.reviewer)+'</b><p>'+escapeHtml(rev.comment||'（无文字评价）')+'</p></div>';}).join('')+'</div>';});}
+function captureInviteCode(){try{var code=new URLSearchParams(window.location.search).get('invite');if(code)sessionStorage.setItem('_invite_code',code);}catch(_){}}
+function generateInviteCode(){var code='';var chars='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';for(var i=0;i<6;i++)code+=chars[Math.floor(Math.random()*chars.length)];return code;}
+async function showInviteDialog(){if(!currentUser){showToast('请先登录','warn');return;}var existing=await sb.from('invitation_codes').select('code').eq('inviter_username',currentUser).is('used_by',null).limit(1);var code=existing.data&&existing.data.length?existing.data[0].code:null;if(!code){code=generateInviteCode();var ins=await sb.from('invitation_codes').insert({code:code,inviter_username:currentUser});if(ins.error){code=generateInviteCode();await sb.from('invitation_codes').insert({code:code,inviter_username:currentUser});}}var base=location.origin&&location.origin!=='null'?location.origin+location.pathname:'https://creatorhub.vercel.app/';var link=base.replace(/\/index\.html$/,'/')+'?invite='+encodeURIComponent(code);showModal({title:'邀请朋友入驻',body:'<p style="text-align:center;font-size:15px;">分享这个链接给你的朋友</p><div class="invite-link-box">'+escapeHtml(link)+'</div><p style="font-size:12px;color:rgba(45,45,45,.5);text-align:center;">邀请奖励：注册 +50XP · 发帖 +30XP · 对接 +100XP</p>',actions:[{text:'📋 复制链接',cls:'btn',onclick:'copyInviteLink(decodeURIComponent(\''+encodeURIComponent(link)+'\'))'}]});}
+function copyInviteLink(link){if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(link).then(function(){showToast('链接已复制！','success');closeModal();}).catch(function(){showToast('复制失败，请手动复制','error');});}else{showToast('复制失败，请手动复制','error');}}
+async function addXPForUser(username,amount,reason){await sb.from('xp_records').insert({username:username,amount:amount,reason:reason});var p=await sb.from('profiles').select('xp,level').eq('username',username).single();if(p.data){var newXP=(p.data.xp||0)+amount;var newLevel=Math.floor(newXP/100)+1;await sb.from('profiles').update({xp:newXP,level:newLevel}).eq('username',username);}}
+async function processInviteCode(){var inviteCode=sessionStorage.getItem('_invite_code');if(!inviteCode||!currentUser)return;sessionStorage.removeItem('_invite_code');var r=await sb.from('invitation_codes').select('inviter_username,used_by').eq('code',inviteCode).single();if(!r.data||r.data.used_by||r.data.inviter_username===currentUser)return;var inviter=r.data.inviter_username;await sb.from('invitation_codes').update({used_by:currentUser,used_at:new Date().toISOString()}).eq('code',inviteCode);await sb.from('friends').insert({username:inviter,friend_name:currentUser}).then(function(){});await sb.from('friends').insert({username:currentUser,friend_name:inviter}).then(function(){});await addXPForUser(inviter,50,'邀请好友注册');await sb.from('notifications').insert({username:inviter,type:'好友',content:currentUser+' 通过你的邀请链接注册了！',from_user:currentUser});showToast('已通过邀请加入，双方已自动成为好友','success');}
+function ensureInviteCard(){var settings=document.getElementById('profileSettings');if(!settings)return null;var el=document.getElementById('inviteProfileCard');if(el)return el;el=document.createElement('div');el.id='inviteProfileCard';el.className='card profile-section invite-card';el.innerHTML='<h3>👥 邀请朋友</h3><p class="hint" id="profileInviteCount">已邀请 0 人入驻</p><button class="btn green" onclick="showInviteDialog()">生成邀请链接</button>';var firstCard=settings.querySelector('.card.profile-section');if(firstCard)settings.insertBefore(el,firstCard);else settings.appendChild(el);return el;}
+function renderInviteStats(){var card=ensureInviteCard();if(!card||!currentUser)return;sb.from('invitation_codes').select('used_by').eq('inviter_username',currentUser).not('used_by','is',null).then(function(r){var el=document.getElementById('profileInviteCount');if(el)el.textContent='已邀请 '+(r.data?r.data.length:0)+' 人入驻';});}
 
 // ========================================
 function initHomepage() {
@@ -2017,6 +2029,7 @@ function renderProfile() {
   document.getElementById('profilePlatforms').innerHTML = myProfile.platforms.map(platformTagHtml).join('');
   renderConnectedPlatforms();
   renderProfileReviews();
+  renderInviteStats();
 
   // Stats
   const myPostCount = posts.filter(p => p.maker === myProfile.name).length;
