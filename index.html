@@ -3659,41 +3659,31 @@ function renderFriendsList() {
 function showFriendProfile(uid) {
   track('profile_view',{target_user:uid,source:_currentTab});
   const user = allUsers.find(u => u.id === uid);
-  if (!user) return;
-
-  // Highlight active item
-  document.querySelectorAll('.friend-item').forEach(el => el.classList.remove('active'));
-  const item = document.querySelector(`.friend-item[data-uid="${uid}"]`);
-  if (item) item.classList.add('active');
-
+  if (!user || uid === myProfile.name) return;
   const isFriend = myFriends.includes(uid);
   const isRequested = friendRequests.some(r => r.from === uid);
-  const profileDiv = dom.friendsProfile;
-
-  profileDiv.innerHTML = `
-    <div class="friend-profile-card">
-      <div class="big-avatar ${user.online ? 'online' : ''}" style="background:${user.avatarBg || 'var(--avatar)'}">${user.avatar}</div>
-      <h3>${escapeHtml(user.name)}</h3>
-      <span class="profile-role ${user.role}">${escapeHtml(user.roleLabel)}</span>
-      <p class="profile-desc">${escapeHtml(user.desc)}</p>
-      <div class="profile-stats">
-        <div><b>${escapeHtml(user.followers)}</b><br>粉丝/关注</div>
-        <div>${user.online ? '<b style="color:var(--sage)">在线</b>' : '<b style="color:rgba(45,45,45,.4)">离线</b>'}<br>状态</div>
-      </div>
-      <div class="platform-tags" style="justify-content:center;">${user.platforms.map(platformTagHtml).join('')}</div>
-      <div class="tags" style="justify-content:center;margin-top:8px;">${user.tags.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>
-      <div class="friend-profile-actions">
-        ${isFriend ? `
-          <button class="btn" onclick="chatWithFriend('${uid}')">💬 发消息</button>
-          <button class="btn secondary" onclick="removeFriend('${uid}')">删除好友</button>
-        ` : (isRequested ? `
-          <span style="padding:10px;color:rgba(45,45,45,.5);font-size:16px;">已发送好友请求，等待对方通过</span>
-        ` : `
-          <button class="btn" onclick="sendFriendRequest('${uid}')">👥 加为好友</button>
-        `)}
-      </div>
-    </div>
-  `;
+  const isSent = sentRequests.some(s => s.to === uid);
+  var actHtml='';
+  if(isFriend){
+    actHtml='<button class="btn" onclick="chatWithFriend(\''+uid+'\');closeUserPopup();">💬 私聊</button><button class="btn secondary" onclick="removeFriend(\''+uid+'\');closeUserPopup();" style="margin-left:6px;">删除好友</button>';
+  }else if(isRequested){
+    actHtml='<button class="btn" onclick="acceptRequest(\''+uid+'\');closeUserPopup();">✅ 接受好友请求</button><button class="btn secondary" onclick="rejectRequest(\''+uid+'\');closeUserPopup();" style="margin-left:6px;">拒绝</button>';
+  }else if(isSent){
+    actHtml='<span style="padding:10px;color:rgba(45,45,45,.5);">已发送好友请求</span>';
+  }else{
+    actHtml='<button class="btn" onclick="sendFriendRequest(\''+uid+'\');closeUserPopup();">👥 加为好友</button>';
+  }
+  document.getElementById('userPopupCard').innerHTML=
+    '<button style="position:absolute;right:10px;top:8px;font-size:22px;cursor:pointer;background:none;border:none;" onclick="closeUserPopup()">×</button>'+
+    '<div class="big-avatar '+(user.online?'online':'')+'" style="background:'+(user.avatarBg||'var(--avatar)')+';width:64px;height:64px;line-height:64px;font-size:28px;margin:0 auto 8px;border-radius:50%;">'+user.avatar+'</div>'+
+    '<h3 style="margin:4px 0;">'+escapeHtml(user.name)+' '+(user.online?'<span style="color:var(--sage);font-size:12px;">●在线</span>':'<span style="color:rgba(0,0,0,.3);font-size:12px;">●离线</span>')+'</h3>'+
+    '<span class="profile-role '+user.role+'" style="display:inline-block;margin-bottom:6px;">'+escapeHtml(user.roleLabel)+'</span>'+
+    '<p style="font-size:14px;color:rgba(45,45,45,.5);margin:6px 0;">'+escapeHtml(user.desc||'这个人很懒，什么都没写')+'</p>'+
+    '<div style="margin-top:10px;">'+actHtml+'</div>';
+  document.getElementById('userPopupOverlay').style.display='flex';
+}
+function closeUserPopup(){
+  document.getElementById('userPopupOverlay').style.display='none';
 }
 
 function sendFriendRequest(uid) {
@@ -3798,6 +3788,7 @@ function quickAddFriend(name) {
 
 function chatWithFriend(uid) {
   if (uid === currentUser || uid === myProfile.name) { showToast('不能和自己聊天'); return; }
+  if (!myFriends.includes(uid)) { showToast('需要先加为好友才能私聊 💬'); return; }
   const user = allUsers.find(u => u.id === uid);
   if (!user) return;
   // Find existing contact by any ID pattern or by name
@@ -4171,6 +4162,7 @@ function init() {
 initAuth().then(function(){loadAllData();});
 </script>
 
+<div class="user-popup-overlay" id="userPopupOverlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.3);z-index:1000;justify-content:center;align-items:center;" onclick="closeUserPopup()"><div class="user-popup-card" id="userPopupCard" style="background:var(--white);border-radius:12px;padding:20px;max-width:320px;width:90%;text-align:center;box-shadow:4px 4px 0 0 var(--ink);" onclick="event.stopPropagation()"></div></div>
 <div class="emoji-picker" id="emojiPicker" style="display:none;"></div>
 <input type="file" id="imgUploader" accept="image/*" style="display:none;" onchange="handleImageUpload(event)" />
 
