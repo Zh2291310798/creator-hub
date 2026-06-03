@@ -2231,10 +2231,20 @@ async function doRegister(){
   if(pass.length<6){err.textContent='密码至少6位';return;}
   if(pass!==pass2){err.textContent='两次密码不一致';return;}
   var roleMap={creator:'创作者 / 达人',brand:'品牌方',recruiter:'招聘方',freelancer:'自由职业者',student:'🎓 在校学生 / 应届毕业生',career_switcher:'🆕 想转行入行'};
+  var existing=await sb.from('profiles').select('id').eq('username',user).maybeSingle();
+  if(existing.error){err.textContent='注册失败，请稍后重试';return;}
+  if(existing.data){err.textContent='用户名已被占用';return;}
   var _r=await sb.auth.signUp({email:email,password:pass,options:{data:{username:user,role:role,role_label:roleMap[role]}}});
   if(_r.error){err.textContent=_r.error.message==='User already registered'?'该邮箱已被注册':_r.error.message;return;}
   // Manually create profile (bypass trigger)
-  if(_r.data.user){sb.from('profiles').insert({id:_r.data.user.id,email:email,username:user,role:role,role_label:roleMap[role],avatar_text:user}).then(function(){}).catch(function(){});}
+  if(_r.data.user){
+    var ins=await sb.from('profiles').insert({id:_r.data.user.id,email:email,username:user,role:role,role_label:roleMap[role],avatar_text:user});
+    if(ins.error){
+      track('reg_profile_fail',{error:ins.error.message});
+      var created=await sb.from('profiles').select('id').eq('id',_r.data.user.id).maybeSingle();
+      if(!created.data){err.textContent='注册失败，请稍后重试';return;}
+    }
+  }
   track('user_register',{role:role});
   if(_r.data.user&&_r.data.session){await loadSession(_r.data.user);init();showToast('注册成功！欢迎加入 CreatorHub 🎉');}
   else{showLogin();showToast('注册成功！请登录');document.getElementById('loginUser').value=email;document.getElementById('loginPass').value='';var err2=document.getElementById('loginError');err2.textContent='注册成功，请登录';err2.style.color='var(--sage)';}
@@ -2253,6 +2263,7 @@ function showLogin(){
 
 async function doLogout(){
   if(window._pollTimer)clearInterval(window._pollTimer);
+  try{await sb.removeAllChannels();}catch(e){}
   await sb.auth.signOut();
   currentUser=null;
   location.reload();
