@@ -2260,8 +2260,8 @@ async function doLogout(){
 
 // ========================================
 
-function emoFor(t){var m={'社区评论':'💬','对接':'🤝','本地':'📍','招募':'💼','好友':'👥','聊天':'💬','系统':'🔔'};return m[t]||'💬';}
-function actFor(t){var m={'社区评论':'community','对接':'match','本地':'local','招募':'recruit','好友':'friends','聊天':'chat'};return m[t]||'';}
+function emoFor(t){var m={'社区评论':'💬','对接':'🤝','本地':'📍','招募':'💼','好友':'👥','聊天':'💬','系统':'🔔','点赞':'❤️'};return m[t]||'💬';}
+function actFor(t){var m={'社区评论':'community','对接':'match','本地':'local','招募':'recruit','好友':'friends','聊天':'chat','点赞':'community'};return m[t]||'';}
 // DATA LAYER
 // ========================================
 
@@ -2315,6 +2315,7 @@ function pollUpdates(){
     if(r.data&&r.data.length>0){renderChatMessages();updateChatBadge();renderChatContacts();}
   });
   sb.from("comments").select("*").gt("created_at",new Date(parseInt(since)).toISOString()).then(function(r){if(r.data&&r.data.length>0){r.data.forEach(function(c){if(!postComments[c.post_id])postComments[c.post_id]=[];if(!postComments[c.post_id].find(function(x){return x.author===c.author&&x.text===c.content;})){postComments[c.post_id].push({author:c.author,text:c.content,time:fmtTime(c.created_at)});var _pp=posts.find(function(x){return x.id===c.post_id;});if(_pp)_pp.comments=(_pp.comments||0)+1;}});if(currentPostId&&postComments[currentPostId]){var _ov=document.getElementById("postFullview");if(_ov){var _ci=_ov.querySelector(".post-full-comments h3");if(_ci)_ci.textContent="💬 评论 ("+postComments[currentPostId].length+")";}}};renderPosts();});
+  sb.from("posts").select("id,likes,comment_count").gt("created_at",new Date(parseInt(since)-60000).toISOString()).then(function(r){if(r.data&&r.data.length>0){r.data.forEach(function(sp){var lp=posts.find(function(x){return x.id===sp.id;});if(lp&&(lp.likes!==sp.likes||lp.comments!==sp.comment_count)){lp.likes=sp.likes||0;lp.comments=sp.comment_count||0;}});renderPosts();}});
   sessionStorage.setItem("_poll_since",Date.now()-5000);
 }
 
@@ -3597,7 +3598,7 @@ function renderPosts(filter = 'all') {
       ${p.platform && p.platform !== 'all' ? `<div class="platform-tags" style="margin:6px 0;">${platformTagHtml(p.platform)}</div>` : ''}
       <p>${escapeHtml(p.desc)}</p>
       <div class="post-stats">
-        <span>👍 ${p.likes}</span>
+        <span onclick="event.stopPropagation();likePost('${p.id}')" style="cursor:pointer;" title="点赞">👍 ${p.likes}</span>
         <span>💬 ${p.comments}</span>
       </div>
       <div class="card-foot">
@@ -4005,7 +4006,7 @@ function renderProfile() {
         <span class="post-category ${p.category}">${p.categoryLabel}</span>
         <h3>${escapeHtml(p.title)}</h3>
         <p>${escapeHtml(p.desc)}</p>
-        <div class="post-stats"><span>👍 ${p.likes}</span><span>💬 ${p.comments}</span><span>${p.time}</span></div>
+        <div class="post-stats"><span onclick="event.stopPropagation();likePost('${p.id}')" style="cursor:pointer;" title="点赞">👍 ${p.likes}</span><span>💬 ${p.comments}</span><span>${p.time}</span></div>
       </article>
     `).join('');
 
@@ -4130,7 +4131,7 @@ async function openPostDetail(postId) {
   });
   if(!cmts.length) h += '<p style="color:rgba(45,45,45,.4);">还没有评论，来说两句吧</p>';
   h += '</div>';
-  h += '<div class="post-full-input"><input type="text" id="commentInput" placeholder="写下你的评论...（Enter 发送）" /><button class="btn" onclick="addComment()">发送</button>';
+  h += '<div class="post-full-input"><button class="btn" id="likeBtn" onclick="likePost(\''+p.id+'\')" style="background:#fff0f0;margin-bottom:8px;">👍 点赞 (' + (p.likes||0) + ')</button><br>'; h += '<div class="post-full-input"><input type="text" id="commentInput" placeholder="写下你的评论...（Enter 发送）" /><button class="btn" onclick="addComment()">发送</button>';
   if(isMyPost) h += '<button class="btn" onclick="deletePost(\''+p.id+'\');closePostDetail();" style="background:#ffd6d6;margin-left:8px;">🗑 删除</button>';
   h += '</div></div>';
   document.body.insertAdjacentHTML('beforeend', h);
@@ -4144,6 +4145,23 @@ function closePostDetail() {
   currentPostId=null;
 }
 
+
+function likePost(postId) {
+  var p = posts.find(function(x){ return x.id === postId; });
+  if (!p) return;
+  p.likes = (p.likes || 0) + 1;
+  sb.from("posts").update({likes: p.likes}).eq("id", postId).then(function(r){
+    if(r.error) console.error("Like update failed:", r.error);
+  });
+  if (p.maker && p.maker !== myProfile.name) {
+    deliverNotification(p.maker, "❤️ 赞了你的帖子：「"+p.title.slice(0,30)+"」", "点赞");
+  }
+  track("post_like", {post_id: postId});
+  addXP(5, "点赞");
+  var lb = document.getElementById("likeBtn");
+  if (lb) lb.textContent = "👍 已赞 (" + p.likes + ")";
+  renderPosts();
+}
 function addComment() {
   var input=document.getElementById('commentInput');
   if(!input||!input.value.trim()||!currentPostId)return;
