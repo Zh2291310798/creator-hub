@@ -3026,8 +3026,8 @@ function renderChatContacts() {
       <span style="font-size:12px;color:var(--sage);">${worldChat.length}条</span>
     </div>
   ` + contacts.map(c => `
-    <div class="chat-contact${activeContact && activeContact.id === c.id ? ' active' : ''}" data-id="${c.id}" onclick="selectContact('${c.id}')">
-      <span class="avatar" style="${avatarStyle(c.name)}">${c.avatar}</span>
+    <div class="chat-contact${activeContact && activeContact.id === c.id ? ' active' : ''}" data-contact-id="${escapeHtml(c.id)}">
+      <span class="avatar" style="${avatarStyle(c.name)}">${escapeHtml(c.avatar)}</span>
       <div class="chat-contact-info">
         <div class="name">${escapeHtml(c.name)}</div>
         <div class="last-msg">${escapeHtml(c.lastMsg)}</div>
@@ -3036,6 +3036,11 @@ function renderChatContacts() {
     </div>
   `).join('');
 }
+document.getElementById('chatContactList').addEventListener('click', function(e) {
+  var contact = e.target.closest('[data-contact-id]');
+  if (!contact) return;
+  selectContact(contact.dataset.contactId);
+});
 
 function selectWorldChat() {
   activeContact = { id:'world', name:'世界频道', avatar:'🌍' };
@@ -3175,7 +3180,7 @@ function renderNotifications() {
   if (!list.length) { container.innerHTML = '<p style="color:rgba(45,45,45,.4);text-align:center;padding:20px;">暂无消息</p>'; return; }
   container.innerHTML = list.map(function(n) {
     var t = new Date(n.time); var timeStr = t.getMonth()+1+'/'+t.getDate()+' '+String(t.getHours()).padStart(2,'0')+':'+String(t.getMinutes()).padStart(2,'0');
-    return '<div class="notify-item'+(n.read?'':' unread')+'" onclick="handleNotifyClick(\''+String(list.indexOf(n))+'\',\''+(n.action||'').replace(/'/g,'\\\'')+'\')"><span class="notify-emoji">'+n.emoji+'</span><div class="notify-body"><b>'+n.title+'</b><p>'+n.body+'</p></div><span class="notify-time">'+timeStr+'</span></div>';
+    return '<div class="notify-item'+(n.read?'':' unread')+'" data-notify-index="'+String(list.indexOf(n))+'" data-notify-action="'+escapeHtml(n.action||'')+'"><span class="notify-emoji">'+escapeHtml(n.emoji)+'</span><div class="notify-body"><b>'+escapeHtml(n.title)+'</b><p>'+escapeHtml(n.body)+'</p></div><span class="notify-time">'+escapeHtml(timeStr)+'</span></div>';
   }).join('');
   // Mark all as read in UI
   list.forEach(function(n) { n.read = true; });
@@ -3195,6 +3200,11 @@ function clearAllNotifications() {
   localStorage.setItem('creatorhub_notify_list', '[]');
   renderNotifications(); updateNotifyBadge();
 }
+document.getElementById('notifyList').addEventListener('click', function(e) {
+  var item = e.target.closest('.notify-item');
+  if (!item) return;
+  handleNotifyClick(item.dataset.notifyIndex, item.dataset.notifyAction || '');
+});
 
 function sendMessage() {
   if (activeContact && activeContact.id === 'world') { sendWorldMessage(); return; }
@@ -3304,15 +3314,21 @@ function renderRecruits(filter = 'all') {
       <div class="tags">${r.tags.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>
       <div class="card-foot">
         <div class="maker">
-          <span class="avatar ${r.avatarBg}">${r.avatar}</span>
+          <span class="avatar ${escapeHtml(r.avatarBg)}">${escapeHtml(r.avatar)}</span>
           <span>${escapeHtml(r.poster)}</span>
         </div>
-        <button class="btn" onclick="event.stopPropagation();openRecruitDrawer('${r.id}')">查看详情</button>
-        <button class="mini-btn-link" onclick="event.stopPropagation();quickAddFriend('${escapeHtml(r.poster)}')" title="加好友">👥</button>
+        <button class="btn" data-recruit-id="${escapeHtml(r.id)}">查看详情</button>
+        <button class="mini-btn-link" data-friend-name="${escapeHtml(r.poster)}" title="加好友">👥</button>
       </div>
     </article>
   `).join('');
 }
+document.getElementById('recruitGrid').addEventListener('click', function(e) {
+  var recruitBtn = e.target.closest('[data-recruit-id]');
+  if (recruitBtn) { e.stopPropagation(); openRecruitDrawer(recruitBtn.dataset.recruitId); return; }
+  var friendBtn = e.target.closest('[data-friend-name]');
+  if (friendBtn) { e.stopPropagation(); quickAddFriend(friendBtn.dataset.friendName); }
+});
 
 function openRecruitDrawer(id) {
   const r = recruits.find(x => x.id === id);
@@ -3434,12 +3450,12 @@ function renderMatch() {
       <div class="tags">${b.tags.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>
       <div class="card-foot">
         <div class="maker">
-          <span class="avatar ${b.avatarBg}">${b.avatar}</span>
+          <span class="avatar ${escapeHtml(b.avatarBg)}">${escapeHtml(b.avatar)}</span>
           <span>${escapeHtml(b.brand)}</span>
         </div>
-        <button class="btn" onclick="event.stopPropagation();openMatchMsg(event,'${escapeHtml(b.brand)}','品牌方')">我想合作</button>
-        <button class="mini-btn-link" onclick="event.stopPropagation();quickAddFriend('${escapeHtml(b.brand)}')" title="加好友">👥</button>
-        ${b.brand === myProfile.name ? '<button class="mini-btn reject" onclick="event.stopPropagation();deleteMatch(\'' + b.id + '\',\'brand\')" title="删除">🗑</button>' : ''}
+        <button class="btn" data-match-name="${escapeHtml(b.brand)}" data-match-role="品牌方">我想合作</button>
+        <button class="mini-btn-link" data-friend-name="${escapeHtml(b.brand)}" title="加好友">👥</button>
+        ${b.brand === myProfile.name ? '<button class="mini-btn reject" data-delete-match-id="' + escapeHtml(b.id) + '" data-delete-match-type="brand" title="删除">🗑</button>' : ''}
       </div>
     </article>
   `).join('');
@@ -3456,17 +3472,25 @@ function renderMatch() {
       <div class="tags">${c.tags.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>
       <div class="card-foot">
         <div class="maker">
-          <span class="avatar ${c.avatarBg}">${c.avatar}</span>
+          <span class="avatar ${escapeHtml(c.avatarBg)}">${escapeHtml(c.avatar)}</span>
           <span>${escapeHtml(c.creator)}</span>
         </div>
-        <button class="btn" onclick="event.stopPropagation();openMatchMsg(event,'${escapeHtml(c.creator)}','达人')">联系TA</button>
-        <button class="mini-btn-link" onclick="event.stopPropagation();quickAddFriend('${escapeHtml(c.creator)}')" title="加好友">👥</button>
-        ${c.creator === myProfile.name ? '<button class="mini-btn reject" onclick="event.stopPropagation();deleteMatch(\'' + c.id + '\',\'creator\')" title="删除">🗑</button>' : ''}
+        <button class="btn" data-match-name="${escapeHtml(c.creator)}" data-match-role="达人">联系TA</button>
+        <button class="mini-btn-link" data-friend-name="${escapeHtml(c.creator)}" title="加好友">👥</button>
+        ${c.creator === myProfile.name ? '<button class="mini-btn reject" data-delete-match-id="' + escapeHtml(c.id) + '" data-delete-match-type="creator" title="删除">🗑</button>' : ''}
       </div>
     </article>
   `).join('');
   track('match_view',{view_mode:matchFilter});
 }
+document.getElementById('matchColumns').addEventListener('click', function(e) {
+  var matchBtn = e.target.closest('[data-match-name]');
+  if (matchBtn) { e.stopPropagation(); openMatchMsg(e, matchBtn.dataset.matchName, matchBtn.dataset.matchRole); return; }
+  var friendBtn = e.target.closest('[data-friend-name]');
+  if (friendBtn) { e.stopPropagation(); quickAddFriend(friendBtn.dataset.friendName); return; }
+  var deleteBtn = e.target.closest('[data-delete-match-id]');
+  if (deleteBtn) { e.stopPropagation(); deleteMatch(deleteBtn.dataset.deleteMatchId, deleteBtn.dataset.deleteMatchType); }
+});
 
 function deleteMatch(id, type) {
   if (!confirm('确定删除这条对接需求吗？')) return;
@@ -3588,8 +3612,8 @@ function createPost() {
 function renderPosts(filter = 'all') {
   let items = filter === 'all' ? posts : posts.filter(p => p.category === filter);
   document.getElementById('postGrid').innerHTML = items.map((p, i) => `
-    <article class="post-card" style="--tilt:${randTilt(i)};--tape:${randTape(i)};cursor:pointer;" onclick="openPostDetail('${p.id}')">
-      <span class="post-category ${p.category}">${p.categoryLabel}</span>
+    <article class="post-card" style="--tilt:${randTilt(i)};--tape:${randTape(i)};cursor:pointer;" data-post-id="${escapeHtml(p.id)}">
+      <span class="post-category ${escapeHtml(p.category)}">${escapeHtml(p.categoryLabel)}</span>
       <h3>${escapeHtml(p.title)}</h3>
       ${p.platform && p.platform !== 'all' ? `<div class="platform-tags" style="margin:6px 0;">${platformTagHtml(p.platform)}</div>` : ''}
       <p>${escapeHtml(p.desc)}</p>
@@ -3599,15 +3623,21 @@ function renderPosts(filter = 'all') {
       </div>
       <div class="card-foot">
         <div class="maker">
-          <span class="avatar">${p.avatar}</span>
+          <span class="avatar">${escapeHtml(p.avatar)}</span>
           <span>${escapeHtml(p.maker)}</span>
         </div>
-        <span style="font-size:14px;color:rgba(45,45,45,.5);">${p.time}</span>
-        ${p.maker === '我' || p.maker === myProfile.name ? '<button class="mini-btn reject" onclick="event.stopPropagation();deletePost(\'' + p.id + '\')" title="删除">🗑</button>' : ''}
+        <span style="font-size:14px;color:rgba(45,45,45,.5);">${escapeHtml(p.time)}</span>
+        ${p.maker === '我' || p.maker === myProfile.name ? '<button class="mini-btn reject" data-delete-post-id="' + escapeHtml(p.id) + '" title="删除">🗑</button>' : ''}
       </div>
     </article>
   `).join('');
 }
+document.getElementById('postGrid').addEventListener('click', function(e) {
+  var deleteBtn = e.target.closest('[data-delete-post-id]');
+  if (deleteBtn) { e.stopPropagation(); deletePost(deleteBtn.dataset.deletePostId); return; }
+  var card = e.target.closest('[data-post-id]');
+  if (card) openPostDetail(card.dataset.postId);
+});
 
 // Post filters
 document.getElementById('postFilters').addEventListener('click', e => {
@@ -3750,15 +3780,15 @@ function renderFriendsList() {
     container.innerHTML = friends.length === 0
       ? '<p style="text-align:center;padding:30px;color:rgba(45,45,45,.45);">还没有好友，去「发现新朋友」里找找看吧</p>'
       : friends.map(f => `
-        <div class="friend-item" data-uid="${f.id}" onclick="showFriendProfile('${f.id}')">
-          <span class="avatar ${f.online ? 'online' : ''}" style="${avatarStyle(f.name)}">${f.avatar}</span>
+        <div class="friend-item" data-uid="${escapeHtml(f.id)}">
+          <span class="avatar ${f.online ? 'online' : ''}" style="${avatarStyle(f.name)}">${escapeHtml(f.avatar)}</span>
           <div class="friend-item-info">
             <div class="name">${escapeHtml(f.name)} ${f.online ? '<span style="color:var(--sage);font-size:12px;">●在线</span>' : ''}</div>
             <div class="brief">${escapeHtml(f.roleLabel)} · ${escapeHtml(f.platforms.join('/'))}</div>
           </div>
           <div class="friend-item-actions">
-            <button class="mini-btn msg" onclick="event.stopPropagation();chatWithFriend('${f.id}')" title="发消息">💬</button>
-            <button class="mini-btn reject" onclick="event.stopPropagation();removeFriend('${f.id}')" title="删除好友">✕</button>
+            <button class="mini-btn msg" data-chat-friend-id="${escapeHtml(f.id)}" title="发消息">💬</button>
+            <button class="mini-btn reject" data-remove-friend-id="${escapeHtml(f.id)}" title="删除好友">✕</button>
           </div>
         </div>
       `).join('');
@@ -3770,14 +3800,14 @@ function renderFriendsList() {
       ? '<p style="text-align:center;padding:30px;color:rgba(45,45,45,.45);">没有待处理的好友请求</p>'
       : reqs.map(r => `
         <div class="friend-item">
-          <span class="avatar" style="${avatarStyle(r.user.name)}">${r.user.avatar}</span>
+          <span class="avatar" style="${avatarStyle(r.user.name)}">${escapeHtml(r.user.avatar)}</span>
           <div class="friend-item-info">
             <div class="name">${escapeHtml(r.user.name)}</div>
             <div class="brief">${escapeHtml(r.message)} · ${r.time}</div>
           </div>
           <div class="friend-item-actions">
-            <button class="mini-btn accept" onclick="acceptRequest('${r.from}')">接受</button>
-            <button class="mini-btn reject" onclick="rejectRequest('${r.from}')">拒绝</button>
+            <button class="mini-btn accept" data-accept-request-id="${escapeHtml(r.from)}">接受</button>
+            <button class="mini-btn reject" data-reject-request-id="${escapeHtml(r.from)}">拒绝</button>
           </div>
         </div>
       `).join('');
@@ -3786,8 +3816,8 @@ function renderFriendsList() {
     container.innerHTML = users.length === 0
       ? '<p style="text-align:center;padding:30px;color:rgba(45,45,45,.45);">没找到匹配的用户</p>'
       : users.map(u => `
-        <div class="friend-item" data-uid="${u.id}" onclick="showFriendProfile('${u.id}')">
-          <span class="avatar ${u.online ? 'online' : ''}" style="${avatarStyle(u.name)}">${u.avatar}</span>
+        <div class="friend-item" data-uid="${escapeHtml(u.id)}">
+          <span class="avatar ${u.online ? 'online' : ''}" style="${avatarStyle(u.name)}">${escapeHtml(u.avatar)}</span>
           <div class="friend-item-info">
             <div class="name">${escapeHtml(u.name)}</div>
             <div class="brief">${escapeHtml(u.roleLabel)} · ${escapeHtml(u.tags.slice(0,2).join('、'))}</div>
@@ -3795,13 +3825,27 @@ function renderFriendsList() {
           <div class="friend-item-actions">
             ${u.isRequested
               ? '<span style="font-size:13px;color:rgba(45,45,45,.4);">已发送请求</span>'
-              : '<button class="mini-btn add" onclick="event.stopPropagation();sendFriendRequest(\'' + u.id + '\')">加好友</button>'
+              : '<button class="mini-btn add" data-send-request-id="' + escapeHtml(u.id) + '">加好友</button>'
             }
           </div>
         </div>
       `).join('');
   }
 }
+document.getElementById('friendsList').addEventListener('click', function(e) {
+  var action = e.target.closest('[data-chat-friend-id],[data-remove-friend-id],[data-accept-request-id],[data-reject-request-id],[data-send-request-id]');
+  if (action) {
+    e.stopPropagation();
+    if (action.dataset.chatFriendId) chatWithFriend(action.dataset.chatFriendId);
+    else if (action.dataset.removeFriendId) removeFriend(action.dataset.removeFriendId);
+    else if (action.dataset.acceptRequestId) acceptRequest(action.dataset.acceptRequestId);
+    else if (action.dataset.rejectRequestId) rejectRequest(action.dataset.rejectRequestId);
+    else if (action.dataset.sendRequestId) sendFriendRequest(action.dataset.sendRequestId);
+    return;
+  }
+  var item = e.target.closest('[data-uid]');
+  if (item) showFriendProfile(item.dataset.uid);
+});
 
 function showFriendProfile(uid) {
   track('profile_view',{target_user:uid,source:_currentTab});
@@ -3998,11 +4042,11 @@ function renderProfile() {
   document.getElementById('myPostsGrid').innerHTML = myPosts.length === 0
     ? '<p style="color:rgba(45,45,45,.4);padding:20px;">还没有发过帖子，去社区写一篇吧 ✍️</p>'
     : myPosts.map((p, i) => `
-      <article class="post-card" style="--tilt:${randTilt(i)};--tape:${randTape(i)}" onclick="openPostDetail('${p.id}')">
-        <span class="post-category ${p.category}">${p.categoryLabel}</span>
+      <article class="post-card" style="--tilt:${randTilt(i)};--tape:${randTape(i)}" data-post-id="${escapeHtml(p.id)}">
+        <span class="post-category ${escapeHtml(p.category)}">${escapeHtml(p.categoryLabel)}</span>
         <h3>${escapeHtml(p.title)}</h3>
         <p>${escapeHtml(p.desc)}</p>
-        <div class="post-stats"><span>👍 ${p.likes}</span><span>💬 ${p.comments}</span><span>${p.time}</span></div>
+        <div class="post-stats"><span>👍 ${p.likes}</span><span>💬 ${p.comments}</span><span>${escapeHtml(p.time)}</span></div>
       </article>
     `).join('');
 
@@ -4028,6 +4072,10 @@ function renderProfile() {
   document.getElementById('profileHome').style.display = '';
   document.getElementById('profileSettings').style.display = 'none';
 }
+document.getElementById('myPostsGrid').addEventListener('click', function(e) {
+  var card = e.target.closest('[data-post-id]');
+  if (card) openPostDetail(card.dataset.postId);
+});
 
 function saveProfile() {
   myProfile.name = document.getElementById('setName').value.trim() || myProfile.name;
@@ -4114,21 +4162,23 @@ function openPostDetail(postId) {
   var h = '<div class="post-fullview" id="postFullview">';
   h += '<button class="drawer-close" onclick="closePostDetail()" style="position:absolute;top:16px;right:16px;z-index:5;">×</button>';
   h += '<div class="post-full-head">';
-  h += '<span class="post-category '+p.category+'">'+p.categoryLabel+'</span>';
+  h += '<span class="post-category '+escapeHtml(p.category)+'">'+escapeHtml(p.categoryLabel)+'</span>';
   if(pHtml) h += '<div class="platform-tags" style="margin-top:8px;">'+pHtml+'</div>';
   h += '<h1 class="post-full-title">'+escapeHtml(p.title)+'</h1>';
-  h += '<div class="post-full-meta"><span class="avatar" style="'+avatarStyle(p.maker)+';display:inline-grid;width:36px;height:36px;vertical-align:middle;margin-right:8px;">'+p.avatar+'</span> '+escapeHtml(p.maker)+' · '+p.time+' · 👍 '+p.likes+' · 💬 '+p.comments+'</div></div>';
+  h += '<div class="post-full-meta"><span class="avatar" style="'+avatarStyle(p.maker)+';display:inline-grid;width:36px;height:36px;vertical-align:middle;margin-right:8px;">'+escapeHtml(p.avatar)+'</span> '+escapeHtml(p.maker)+' · '+escapeHtml(p.time)+' · 👍 '+p.likes+' · 💬 '+p.comments+'</div></div>';
   h += '<div class="post-full-body"><p>'+escapeHtml(p.desc)+'</p><p style="color:rgba(45,45,45,.5);margin-top:16px;">（完整文章...支持长文、图片、Markdown）</p></div>';
   h += '<div class="post-full-comments"><h3>💬 评论 ('+cmts.length+')</h3>';
   cmts.forEach(function(c){
-    h += '<div class="comment-item"><div class="comment-avatar" style="'+avatarStyle(c.author)+'">'+c.author.slice(0,1)+'</div><div class="comment-body"><b>'+escapeHtml(c.author)+'</b> <span class="comment-time">'+c.time+'</span><p>'+escapeHtml(c.text)+'</p></div></div>';
+    h += '<div class="comment-item"><div class="comment-avatar" style="'+avatarStyle(c.author)+'">'+escapeHtml(c.author.slice(0,1))+'</div><div class="comment-body"><b>'+escapeHtml(c.author)+'</b> <span class="comment-time">'+escapeHtml(c.time)+'</span><p>'+escapeHtml(c.text)+'</p></div></div>';
   });
   if(!cmts.length) h += '<p style="color:rgba(45,45,45,.4);">还没有评论，来说两句吧</p>';
   h += '</div>';
   h += '<div class="post-full-input"><input type="text" id="commentInput" placeholder="写下你的评论...（Enter 发送）" /><button class="btn" onclick="addComment()">发送</button>';
-  if(isMyPost) h += '<button class="btn" onclick="deletePost(\''+p.id+'\');closePostDetail();" style="background:#ffd6d6;margin-left:8px;">🗑 删除</button>';
+  if(isMyPost) h += '<button class="btn" data-delete-post-id="'+escapeHtml(p.id)+'" style="background:#ffd6d6;margin-left:8px;">🗑 删除</button>';
   h += '</div></div>';
   document.body.insertAdjacentHTML('beforeend', h);
+  var deleteBtn = document.querySelector('#postFullview [data-delete-post-id]');
+  if(deleteBtn)deleteBtn.addEventListener('click',function(){deletePost(this.dataset.deletePostId);closePostDetail();});
   setTimeout(function(){ var ci=document.getElementById('commentInput');if(ci)ci.focus(); },300);
 }
 
