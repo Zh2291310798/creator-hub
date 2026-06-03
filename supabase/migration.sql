@@ -178,7 +178,8 @@ CREATE TABLE IF NOT EXISTS friend_requests (
   from_user TEXT NOT NULL,
   to_user TEXT NOT NULL,
   status TEXT DEFAULT 'pending',
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(from_user, to_user)
 );
 
 -- ============================================
@@ -220,7 +221,15 @@ CREATE TABLE IF NOT EXISTS tracking_events (
 -- ============================================
 -- RLS 策略（简化版：认证用户可读可写）
 -- ============================================
+CREATE TABLE IF NOT EXISTS post_likes (
+  post_id TEXT NOT NULL,
+  username TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (post_id, username)
+);
+
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE post_likes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE posts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE comments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
@@ -276,6 +285,8 @@ CREATE POLICY "ob_read_own" ON onboarding_status FOR SELECT
   USING (auth.uid() IS NOT NULL);
 CREATE POLICY "ob_update_own" ON onboarding_status FOR UPDATE
   USING (auth.uid() IS NOT NULL);
+CREATE POLICY "post_likes_all_auth" ON post_likes FOR ALL USING (true) WITH CHECK (true);
+
 CREATE POLICY "track_read_own" ON tracking_events FOR SELECT
   USING (true);
 CREATE POLICY "profile_update_own" ON profiles FOR UPDATE
@@ -286,10 +297,13 @@ CREATE POLICY "profile_insert_own" ON profiles FOR INSERT
 -- 删除：仅自己的数据
 CREATE POLICY "posts_delete_own_auth" ON posts FOR DELETE
   USING (auth.uid() IS NOT NULL);
+CREATE POLICY "posts_update_own_auth" ON posts FOR UPDATE USING (auth.uid() IS NOT NULL);
 CREATE POLICY "recruits_delete_own_auth" ON recruits FOR DELETE
   USING (auth.uid() IS NOT NULL);
 CREATE POLICY "local_delete_own_auth" ON local_demands FOR DELETE
   USING (auth.uid() IS NOT NULL);
+CREATE POLICY "fr_delete_own" ON friend_requests FOR DELETE USING (auth.uid() IS NOT NULL);
+CREATE POLICY "fr_insert_own" ON friend_requests FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
 CREATE POLICY "friends_delete_own_auth" ON friends FOR DELETE
   USING (auth.uid() IS NOT NULL);
 
@@ -301,6 +315,12 @@ ALTER PUBLICATION supabase_realtime ADD TABLE world_messages;
 ALTER PUBLICATION supabase_realtime ADD TABLE notifications;
 ALTER PUBLICATION supabase_realtime ADD TABLE posts;
 ALTER PUBLICATION supabase_realtime ADD TABLE comments;
+ALTER PUBLICATION supabase_realtime ADD TABLE recruits;
+ALTER PUBLICATION supabase_realtime ADD TABLE match_demands;
+ALTER PUBLICATION supabase_realtime ADD TABLE friend_requests;
+ALTER PUBLICATION supabase_realtime ADD TABLE friends;
+ALTER PUBLICATION supabase_realtime ADD TABLE local_demands;
+ALTER PUBLICATION supabase_realtime ADD TABLE post_likes;
 
 -- ============================================
 -- 索引
