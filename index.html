@@ -2297,16 +2297,16 @@ function setupRealtime(){
     .subscribe();
   sb.channel("posts-live")
     .on("postgres_changes",{event:"INSERT",schema:"public",table:"posts"},
-      function(p){if(p.new){posts.unshift({id:p.new.id,title:p.new.title,category:p.new.category,categoryLabel:p.new.category_label||"其他",maker:p.new.author,avatar:p.new.author_avatar,time:"刚刚",desc:p.new.content,platform:p.new.platform||"all",likes:p.new.likes||0,comments:p.new.comment_count||0});renderPosts("all");}})
+      function(p){if(p.new){posts.unshift({id:p.new.id,title:p.new.title,category:p.new.category,categoryLabel:p.new.category_label||"其他",maker:p.new.author,avatar:p.new.author_avatar,time:"刚刚",desc:p.new.content,platform:p.new.platform||"all",likes:p.new.likes||0,comments:p.new.comment_count||0});renderPosts();}})
     .subscribe();
   console.log("Realtime channels subscribed for "+currentUser);
-  window._pollTimer=setInterval(pollUpdates,3000);
+  window._pollTimer=setInterval(pollUpdates,2000);
 }
 function pollUpdates(){
   if(!currentUser||document.hidden)return;
   var since=sessionStorage.getItem("_poll_since")||Date.now();
   sb.from("posts").select("*").gt("created_at",new Date(parseInt(since)).toISOString()).then(function(r){
-    if(r.data&&r.data.length>0){r.data.forEach(function(p){if(!posts.find(function(x){return x.id===p.id;})){posts.unshift({id:p.id,title:p.title,category:p.category,categoryLabel:p.category_label||"其他",maker:p.author,avatar:p.author_avatar,time:"刚刚",desc:p.content,platform:p.platform||"all",likes:p.likes||0,comments:p.comment_count||0});}});renderPosts("all");}
+    if(r.data&&r.data.length>0){r.data.forEach(function(p){if(!posts.find(function(x){return x.id===p.id;})){posts.unshift({id:p.id,title:p.title,category:p.category,categoryLabel:p.category_label||"其他",maker:p.author,avatar:p.author_avatar,time:"刚刚",desc:p.content,platform:p.platform||"all",likes:p.likes||0,comments:p.comment_count||0});}});renderPosts();}
   });
   sb.from("notifications").select("*").eq("username",currentUser).gt("created_at",new Date(parseInt(since)).toISOString()).then(function(r){
     if(r.data&&r.data.length>0){r.data.forEach(function(n){saveNotify(emoFor(n.type),n.from_user+' → '+n.content.slice(0,30),n.content,actFor(n.type));});updateNotifyBadge();}
@@ -2314,7 +2314,8 @@ function pollUpdates(){
   sb.from("chat_messages").select("*").eq("recipient",currentUser).eq("is_read",false).gt("created_at",new Date(parseInt(since)).toISOString()).then(function(r){
     if(r.data&&r.data.length>0){renderChatMessages();updateChatBadge();renderChatContacts();}
   });
-  sessionStorage.setItem("_poll_since",Date.now());
+  sb.from("comments").select("*").gt("created_at",new Date(parseInt(since)).toISOString()).then(function(r){if(r.data&&r.data.length>0){r.data.forEach(function(c){if(!postComments[c.post_id])postComments[c.post_id]=[];if(!postComments[c.post_id].find(function(x){return x.author===c.author&&x.text===c.content;})){postComments[c.post_id].push({author:c.author,text:c.content,time:fmtTime(c.created_at)});var _pp=posts.find(function(x){return x.id===c.post_id;});if(_pp)_pp.comments=(_pp.comments||0)+1;}});if(currentPostId&&postComments[currentPostId]){var _ov=document.getElementById("postFullview");if(_ov){var _ci=_ov.querySelector(".post-full-comments h3");if(_ci)_ci.textContent="💬 评论 ("+postComments[currentPostId].length+")";}}};renderPosts();}});
+  sessionStorage.setItem("_poll_since",Date.now()-5000);
 }
 
 // ========================================
@@ -2326,7 +2327,7 @@ async function loadAllData(){
   if(!currentUser)return;
   // Load posts
   var rp=await sb.from("posts").select("*").order("created_at",{ascending:false}).limit(100);
-  if(rp.data&&rp.data.length>0){rp.data.forEach(function(p){if(!posts.find(function(x){return x.id===p.id;})){posts.unshift({id:p.id,title:p.title,category:p.category,categoryLabel:p.category_label||'其他',maker:p.author||p.maker,avatar:p.author_avatar||p.avatar,time:(function(t){var d=new Date(t);return d.toLocaleDateString('zh-CN',{month:'numeric',day:'numeric'})+' '+d.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})})(p.created_at),desc:p.content||p.desc,platform:p.platform||'all',likes:p.likes||0,comments:p.comment_count||0,tags:p.tags});}});renderPosts("all");}
+  if(rp.data&&rp.data.length>0){rp.data.forEach(function(p){if(!posts.find(function(x){return x.id===p.id;})){posts.unshift({id:p.id,title:p.title,category:p.category,categoryLabel:p.category_label||'其他',maker:p.author||p.maker,avatar:p.author_avatar||p.avatar,time:(function(t){var d=new Date(t);return d.toLocaleDateString('zh-CN',{month:'numeric',day:'numeric'})+' '+d.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})})(p.created_at),desc:p.content||p.desc,platform:p.platform||'all',likes:p.likes||0,comments:p.comment_count||0,tags:p.tags});}});renderPosts();}
   // Load recruits
   var rr=await sb.from("recruits").select("*").order("created_at",{ascending:false}).limit(50);
   if(rr.data&&rr.data.length>0){rr.data.forEach(function(r){if(!recruits.find(function(x){return x.id===r.id;}))recruits.unshift(r);});}
@@ -2350,6 +2351,7 @@ async function loadAllData(){
     });
     renderChatContacts();
   }
+  sessionStorage.setItem("_poll_since",Date.now()-10000);
   setupRealtime();
 }
 // AVATAR SYSTEM
@@ -3141,7 +3143,7 @@ function deliverNotification(targetName, msgText, source) {
     if(!notifs[targetName])notifs[targetName]=[];
     notifs[targetName].push({from:myProfile.name,text:msgText,source:source,time:Date.now(),read:false});
     localStorage.setItem('creatorhub_notifications',JSON.stringify(notifs));
-sb.from("notifications").insert({username:targetName,type:source||"系统",content:msgText,from_user:myProfile.name,link:""}).then(function(){});
+sb.from("notifications").insert({username:targetName,type:source||"系统",content:msgText,from_user:myProfile.name,link:""}).then(function(r){if(r.error)console.error("Notify insert failed:",r.error);});
   }catch(_){}
   renderChatContacts();
 }
@@ -3152,6 +3154,7 @@ function checkNotifications(){ if(currentUser){ loadNotifications().then(functio
 // Notification center — parallel to chat notifications, for the bell dropdown
 function saveNotify(emoji, title, body, action) {
   var list = JSON.parse(localStorage.getItem('creatorhub_notify_list') || '[]');
+  if(list.some(function(n){return n.title===title&&Date.now()-n.time<10000;}))return;
   list.unshift({ emoji: emoji, title: title, body: body, action: action, time: Date.now(), read: false });
   if (list.length > 100) list.splice(100);
   localStorage.setItem('creatorhub_notify_list', JSON.stringify(list));
@@ -4101,11 +4104,13 @@ const postComments = {}; // postId -> [{author, text, time}]
   ];
 })();
 
-function openPostDetail(postId) {
+function fmtTime(ts){var d=new Date(ts);var now=new Date();var diff=Math.floor((now-d)/1000);if(diff<60)return"刚刚";if(diff<3600)return Math.floor(diff/60)+"分钟前";if(diff<86400)return Math.floor(diff/3600)+"小时前";if(diff<604800)return Math.floor(diff/86400)+"天前";return d.toLocaleDateString("zh-CN");}
+async function openPostDetail(postId) {
   currentPostId = postId;
   track('post_view',{post_id:postId});
   var p = posts.find(function(x){ return x.id === postId; });
   if (!p) return;
+  var _sc=await sb.from("comments").select("*").eq("post_id",postId).order("created_at",{ascending:true});if(_sc.data&&_sc.data.length>0){if(!postComments[postId])postComments[postId]=[];_sc.data.forEach(function(c){if(!postComments[postId].find(function(x){return x.author===c.author&&x.text===c.content;})){postComments[postId].push({author:c.author,text:c.content,time:fmtTime(c.created_at)});}});}
   var cmts = postComments[p.id] || [];
   var isMyPost = p.maker === '我' || p.maker === myProfile.name;
   var pHtml = p.platform && p.platform !== 'all' ? platformTagHtml(p.platform) : '';
@@ -4153,6 +4158,7 @@ function addComment() {
   input.value='';
   openPostDetail(currentPostId);
   showToast('评论已发布 +10XP');
+  sb.from("comments").insert({post_id:currentPostId,author:myProfile.name,content:text}).then(function(r){if(r.error)console.error("Comment save failed:",r.error);});var _cp=posts.find(function(x){return x.id===currentPostId;});if(_cp)sb.from("posts").update({comment_count:_cp.comments}).eq("id",currentPostId).then(function(){});
 }
 
 
@@ -4167,6 +4173,7 @@ function deletePost(postId) {
     if (currentPostId === postId) { closeDrawer(); currentPostId = null; }
     renderPosts();
     showToast('已删除：' + p.title);
+    sb.from("posts").delete().eq("id",postId).then(function(r){if(r.error)console.error("Delete post failed:",r.error);});sb.from("comments").delete().eq("post_id",postId).then(function(){});
   }
 }
 
