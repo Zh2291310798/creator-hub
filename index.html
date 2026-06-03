@@ -1573,10 +1573,10 @@ input, textarea, select { font: inherit; }
     </div>
     <div class="platform-wall" id="platformWall"></div>
     <div class="home-stats-bar">
-      <div class="home-stat-item"><span class="num" data-count="1284">0</span><span class="lbl">在线创作者</span></div>
-      <div class="home-stat-item"><span class="num" data-count="56">0</span><span class="lbl">本周新招募</span></div>
-      <div class="home-stat-item"><span class="num" data-count="38">0</span><span class="lbl">成功对接</span></div>
-      <div class="home-stat-item"><span class="num" data-count="203">0</span><span class="lbl">今日新帖</span></div>
+      <div class="home-stat-item"><span class="num" id="homeStatCreators">0</span><span class="lbl">在线创作者</span></div>
+      <div class="home-stat-item"><span class="num" id="homeStatRecruits">0</span><span class="lbl">本周新招募</span></div>
+      <div class="home-stat-item"><span class="num" id="homeStatMatches">0</span><span class="lbl">成功对接</span></div>
+      <div class="home-stat-item"><span class="num" id="homeStatPosts">0</span><span class="lbl">今日新帖</span></div>
     </div>
     <div class="home-features">
       <div class="home-feat-card" onclick="switchTab('chat')"><span class="feat-emoji">💬</span><h3>即时聊天</h3><p>和创作者、品牌方直接对话</p></div>
@@ -1606,10 +1606,10 @@ input, textarea, select { font: inherit; }
     </div>
 
     <div class="hero-stats">
-      <div class="stat-card" style="--tilt:-1.2deg"><b>1,284</b><span>在线创作者</span></div>
-      <div class="stat-card" style="--tilt:0.8deg"><b>56</b><span>本周新招募</span></div>
-      <div class="stat-card" style="--tilt:-0.5deg"><b>38</b><span>成功对接</span></div>
-      <div class="stat-card" style="--tilt:1.1deg"><b>203</b><span>今日新帖</span></div>
+      <div class="stat-card" style="--tilt:-1.2deg"><b id="sqStatCreators">0</b><span>在线创作者</span></div>
+      <div class="stat-card" style="--tilt:0.8deg"><b id="sqStatRecruits">0</b><span>本周新招募</span></div>
+      <div class="stat-card" style="--tilt:-0.5deg"><b id="sqStatMatches">0</b><span>成功对接</span></div>
+      <div class="stat-card" style="--tilt:1.1deg"><b id="sqStatPosts">0</b><span>今日新帖</span></div>
     </div>
 
     <div class="feed-grid" id="feedGrid"></div>
@@ -2021,19 +2021,19 @@ input, textarea, select { font: inherit; }
         <h3>🔔 通知设置</h3>
         <div class="setting-row">
           <span>新消息通知</span>
-          <input type="checkbox" checked onchange="showToast('通知设置已更新')" />
+          <input type="checkbox" id="notify_msg" checked onchange="saveNotifySetting()" />
         </div>
         <div class="setting-row">
           <span>好友请求通知</span>
-          <input type="checkbox" checked onchange="showToast('通知设置已更新')" />
+          <input type="checkbox" id="notify_friend" onchange="saveNotifySetting()" />
         </div>
         <div class="setting-row">
           <span>招募匹配提醒</span>
-          <input type="checkbox" checked onchange="showToast('通知设置已更新')" />
+          <input type="checkbox" id="notify_recruit" onchange="saveNotifySetting()" />
         </div>
         <div class="setting-row">
           <span>社区动态推送</span>
-          <input type="checkbox" onchange="showToast('通知设置已更新')" />
+          <input type="checkbox" id="notify_community" onchange="saveNotifySetting()" />
         </div>
       </div>
 
@@ -2361,9 +2361,18 @@ async function loadAllData(){
   var rfr=await sb.from("friend_requests").select("*").eq("to_user",myProfile.name).eq("status","pending");if(rfr.data&&rfr.data.length>0){friendRequests.length=0;rfr.data.forEach(function(fr){friendRequests.push({from:fr.from_user,message:"",time:fmtTime(fr.created_at)});});}
   var rwm=await sb.from("world_messages").select("*").order("created_at",{ascending:false}).limit(50);if(rwm.data&&rwm.data.length>0){rwm.data.reverse().forEach(function(wm){if(!worldMessages.find(function(x){return x.id===wm.id;})){worldMessages.push({sender:wm.sender,senderAvatar:wm.sender_avatar||wm.sender.slice(0,1),text:wm.content,time:fmtTime(wm.created_at)});}});}
 sessionStorage.setItem("_poll_since",Date.now()-10000);
+  updateLiveStats();
   setupRealtime();
 }
 // AVATAR SYSTEM
+
+function updateLiveStats(){
+  var cc=allUsers.filter(function(u){return u.role==="creator";}).length;
+  var rc=recruits.filter(function(r){return r.status==="招募中";}).length;
+  var mc=brandSeekingData.length+creatorSeekingData.length;
+  var pc=posts.length;
+  [["homeStatCreators",cc],["homeStatRecruits",rc],["homeStatMatches",mc],["homeStatPosts",pc],["sqStatCreators",cc],["sqStatRecruits",rc],["sqStatMatches",mc],["sqStatPosts",pc]].forEach(function(s){var el=document.getElementById(s[0]);if(el)el.textContent=s[1]||"0";});
+}
 // ========================================
 // AVATAR SYSTEM
 // ========================================
@@ -3656,7 +3665,7 @@ function rejectRequest(uid) {
 function removeFriend(uid) {
   const idx = myFriends.indexOf(uid);
   const user = allUsers.find(u => u.id === uid);
-  if (idx >= 0) myFriends.splice(idx, 1);
+  if (idx >= 0) { myFriends.splice(idx, 1); sb.from("friends").delete().eq("username",myProfile.name).eq("friend_name",uid).then(function(r){if(r.error)console.error("Friend remove failed:",r.error);}); }
   // Also remove from chat contacts
   const cidx = contacts.findIndex(c => c.id === 'f_' + uid);
   if (cidx >= 0) contacts.splice(cidx, 1);
@@ -3756,9 +3765,10 @@ function renderProfile() {
   const myPostCount = posts.filter(p => p.maker === myProfile.name).length;
   document.getElementById('profilePosts').textContent = myPostCount;
   document.getElementById('profileFriends').textContent = myFriends.length;
-  document.getElementById('profileFollowing').textContent = '1,284';
+  document.getElementById('profileFollowing').textContent = allUsers.length || '0';
   var xp = (currentUser && myXP) ? myXP : 0;
   document.getElementById('profileFollowers').textContent = xp + 'XP';
+  loadNotifySettings();
 
   // My posts
   const myPosts = posts.filter(p => p.maker === myProfile.name);
@@ -3794,6 +3804,10 @@ function renderProfile() {
   document.querySelector('[data-psub="home"]').classList.add('active');
   document.getElementById('profileHome').style.display = '';
   document.getElementById('profileSettings').style.display = 'none';
+}
+
+function saveNotifySetting(){var prefs={msg:document.getElementById("notify_msg").checked,friend:document.getElementById("notify_friend").checked,recruit:document.getElementById("notify_recruit").checked,community:document.getElementById("notify_community").checked};localStorage.setItem("creatorhub_notify_"+currentUser,JSON.stringify(prefs));showToast("通知设置已保存");}
+function loadNotifySettings(){try{var s=JSON.parse(localStorage.getItem("creatorhub_notify_"+currentUser)||"{}");["msg","friend","recruit","community"].forEach(function(k){var el=document.getElementById("notify_"+k);if(el)el.checked=s[k]!==false;});}catch(e){}
 }
 
 function saveProfile() {
