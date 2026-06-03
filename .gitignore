@@ -1,0 +1,5 @@
+.DS_Store
+.playwright-cli/
+test-results/
+.CODEX_*
+.PIPELINE_PLAN
