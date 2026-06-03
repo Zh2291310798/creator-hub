@@ -21,7 +21,7 @@
   --wobbly-sm: 20px 5px 18px 8px / 8px 20px 5px 18px;
   --wobbly-md: 18px 34px 22px 28px / 26px 19px 32px 18px;
   --wobbly-lg: 42px 26px 36px 24px / 30px 44px 22px 36px;
-  --font-title: "Kalam", "ZCOOL KuaiLe", cursive;
+  --font-title: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
   --font-body: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
 
   /* Platform colors */
