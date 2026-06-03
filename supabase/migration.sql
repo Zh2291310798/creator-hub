@@ -276,8 +276,7 @@ CREATE POLICY "notif_read_own" ON notifications FOR SELECT
   USING (auth.uid() IS NOT NULL);
 CREATE POLICY "notif_update_own" ON notifications FOR UPDATE
   USING (auth.uid() IS NOT NULL);
-CREATE POLICY "friends_read_own" ON friends FOR SELECT
-  USING (auth.uid() IS NOT NULL);
+CREATE POLICY "friends_all_auth" ON friends FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "fr_read_own" ON friend_requests FOR SELECT
   USING (auth.uid() IS NOT NULL);
 CREATE POLICY "xp_read_own" ON xp_records FOR SELECT
