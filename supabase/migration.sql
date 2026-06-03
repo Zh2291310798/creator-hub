@@ -178,7 +178,8 @@ CREATE TABLE IF NOT EXISTS friend_requests (
   from_user TEXT NOT NULL,
   to_user TEXT NOT NULL,
   status TEXT DEFAULT 'pending',
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(from_user, to_user)
 );
 
 -- ============================================
@@ -301,6 +302,11 @@ ALTER PUBLICATION supabase_realtime ADD TABLE world_messages;
 ALTER PUBLICATION supabase_realtime ADD TABLE notifications;
 ALTER PUBLICATION supabase_realtime ADD TABLE posts;
 ALTER PUBLICATION supabase_realtime ADD TABLE comments;
+ALTER PUBLICATION supabase_realtime ADD TABLE recruits;
+ALTER PUBLICATION supabase_realtime ADD TABLE match_demands;
+ALTER PUBLICATION supabase_realtime ADD TABLE friend_requests;
+ALTER PUBLICATION supabase_realtime ADD TABLE friends;
+ALTER PUBLICATION supabase_realtime ADD TABLE local_demands;
 
 -- ============================================
 -- 索引
