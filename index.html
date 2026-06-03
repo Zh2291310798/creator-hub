@@ -2360,7 +2360,7 @@ function pollUpdates(){
     if((d.likes_sync||[]).length>0)renderPosts();
 
     // 6. Recruits
-    (d.new_recruits||[]).forEach(function(rr){if(!recruits.find(function(x){return x.id===rr.id;})){var nr={id:rr.id,title:rr.title,poster:rr.poster,avatar:rr.poster_avatar||rr.poster.slice(0,1),avatarBg:"",type:rr.type||"maker",mode:rr.mode||"全职",desc:rr.description||rr.desc||"",detail:rr.detail||rr.description||"",budget:rr.budget||"面议",city:rr.city||"",platforms:typeof rr.platforms==="string"?JSON.parse(rr.platforms||"[]"):(rr.platforms||[]),tags:typeof rr.tags==="string"?JSON.parse(rr.tags||"[]"):(rr.tags||[]),status:rr.status||"招募中",statusClass:rr.status_class||"active-recruit",postedBy:rr.poster||""};recruits.unshift(nr);}});
+    (d.new_recruits||[]).forEach(function(rr){if(!recruits.find(function(x){return x.id===rr.id;})){var nr={id:rr.id,title:rr.title,poster:rr.poster,avatar:rr.poster_avatar||rr.poster.slice(0,1),avatarBg:"",type:rr.type||"maker",mode:rr.mode||"全职",desc:rr.description||rr.desc||"",detail:rr.detail||rr.description||"",budget:rr.budget||"面议",city:rr.city||"",platforms:typeof rr.platforms==="string"?JSON.parse(rr.platforms||"[]"):(rr.platforms||[]),tags:typeof rr.tags==="string"?JSON.parse(rr.tags||"[]"):(rr.tags||[]),status:rr.status||"招募中",statusClass:rr.status_class||"active-recruit",postedBy:rr.posted_by||rr.poster||""};recruits.unshift(nr);}});
     if((d.new_recruits||[]).length>0)renderRecruits();
 
     // 7. Match demands
@@ -2407,7 +2407,7 @@ async function loadAllData(){
   if(rp.data&&rp.data.length>0){rp.data.forEach(function(p){if(!posts.find(function(x){return x.id===p.id;})){posts.unshift({id:p.id,title:p.title,category:p.category,categoryLabel:p.category_label||'其他',maker:p.author||p.maker,avatar:p.author_avatar||p.avatar,time:(function(t){var d=new Date(t);return d.toLocaleDateString('zh-CN',{month:'numeric',day:'numeric'})+' '+d.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})})(p.created_at),desc:p.content||p.desc,platform:p.platform||'all',likes:p.likes||0,comments:p.comment_count||0,tags:p.tags});}});var _maxId=0;rp.data.forEach(function(p){var _n=parseInt((p.id||'').replace(/[^0-9]/g,''));if(!isNaN(_n)&&_n>_maxId)_maxId=_n;});nextPostId=Math.max(nextPostId,_maxId+1);renderPosts();}
   // Load recruits
   var rr=await sb.from("recruits").select("*").order("created_at",{ascending:false}).limit(50);
-  if(rr.data&&rr.data.length>0){rr.data.forEach(function(r){if(!recruits.find(function(x){return x.id===r.id;})){var nr={id:r.id,title:r.title,poster:r.poster,avatar:r.poster_avatar||r.poster.slice(0,1),avatarBg:"",type:r.type||"maker",mode:r.mode||"全职",desc:r.description||r.desc||"",detail:r.detail||r.description||"",budget:r.budget||"面议",city:r.city||"",platforms:typeof r.platforms==="string"?JSON.parse(r.platforms||"[]"):(r.platforms||[]),tags:typeof r.tags==="string"?JSON.parse(r.tags||"[]"):(r.tags||[]),status:r.status||"招募中",statusClass:r.status_class||"active-recruit",postedBy:r.poster||""};recruits.unshift(nr);}});}
+  if(rr.data&&rr.data.length>0){rr.data.forEach(function(r){if(!recruits.find(function(x){return x.id===r.id;})){var nr={id:r.id,title:r.title,poster:r.poster,avatar:r.poster_avatar||r.poster.slice(0,1),avatarBg:"",type:r.type||"maker",mode:r.mode||"全职",desc:r.description||r.desc||"",detail:r.detail||r.description||"",budget:r.budget||"面议",city:r.city||"",platforms:typeof r.platforms==="string"?JSON.parse(r.platforms||"[]"):(r.platforms||[]),tags:typeof r.tags==="string"?JSON.parse(r.tags||"[]"):(r.tags||[]),status:r.status||"招募中",statusClass:r.status_class||"active-recruit",postedBy:r.posted_by||r.poster||""};recruits.unshift(nr);}});}
   // Load local demands
   var rl=await sb.from("local_demands").select("*").order("created_at",{ascending:false}).limit(50);
   if(rl.data&&rl.data.length>0){localStorage.setItem("creatorhub_local_demands",JSON.stringify(rl.data));}
@@ -3229,7 +3229,7 @@ function publishRecruit() {
   var fb = document.getElementById('rfFeedback');
   if (!title || !company || !desc) { fb.textContent = '标题、公司和描述不能为空！'; fb.style.color = 'var(--red)'; return; }
   var modeLabels = { fulltime: '全职', parttime: '兼职', project: '项目制', intern: '实习' };
-  var _rid="r"+Date.now();sb.from("recruits").insert({id:_rid,title:title,poster:company,poster_avatar:company.slice(0,1),type:type,mode:modeLabels[mode]||mode,description:desc,detail:desc,budget:budget||"面议",city:city,platforms:platforms,tags:[],status:"招募中",status_class:"active-recruit"}).then(function(r){if(r.error)console.error("Recruit insert failed:",r.error);});
+  var _rid="r"+Date.now();sb.from("recruits").insert({id:_rid,title:title,poster:company,poster_avatar:company.slice(0,1),type:type,mode:modeLabels[mode]||mode,description:desc,detail:desc,budget:budget||"面议",city:city,platforms:platforms,tags:[],status:"招募中",status_class:"active-recruit",posted_by:myProfile.name}).then(function(r){if(r.error)console.error("Recruit insert failed:",r.error);});
 recruits.unshift({
     id: _rid,
     title: title,
@@ -3246,9 +3246,10 @@ recruits.unshift({
     tags: [type === 'urgent' ? '急招' : type === 'maker' ? '达人' : type === 'merchant' ? '商家' : '技能', modeLabels[mode] || ''],
     status: '招募中',
     statusClass: 'active-recruit',
-    postedAt: Date.now()
-  });
-  // Clear form
+    postedAt: Date.now(),
+	    postedBy: myProfile.name
+	  });
+	  // Clear form
   document.getElementById('rfTitle').value = ''; document.getElementById('rfCompany').value = ''; document.getElementById('rfDesc').value = ''; document.getElementById('rfBudget').value = ''; document.getElementById('rfCity').value = '';
   track('recruit_publish',{type:type,mode:mode,city:city,platforms_count:platforms.length});
   toggleRecruitForm();

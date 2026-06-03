@@ -127,6 +127,7 @@ CREATE TABLE IF NOT EXISTS recruits (
   tags JSONB DEFAULT '[]'::jsonb,
   status TEXT DEFAULT '招募中',
   status_class TEXT DEFAULT 'active-recruit',
+  posted_by TEXT DEFAULT '',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
