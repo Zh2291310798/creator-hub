@@ -2377,8 +2377,8 @@ function pollUpdates(){
     (d.world_msgs||[]).forEach(function(wm){if(!worldMessages.find(function(x){return x.id===wm.id;})){var _wmm={id:wm.id,sender:wm.sender,senderAvatar:wm.sender_avatar||wm.sender.slice(0,1),text:wm.content,time:fmtTime(wm.created_at)};worldMessages.push(_wmm);if(!worldChat.find(function(x){return x.from===wm.sender&&x.text===wm.content;})){worldChat.push({from:wm.sender,text:wm.content,time:fmtTime(wm.created_at)});}}});
     if((d.world_msgs||[]).length>0){renderWorldChat();renderChatContacts();}
 
-    // 10. Friend requests — full sync every poll
-    friendRequests.length=0;if(d.friend_reqs&&d.friend_reqs.length>0){d.friend_reqs.forEach(function(fr){friendRequests.push({from:fr.from_user,message:"",time:fmtTime(fr.created_at)});});}updateFriendBadge();renderFriendsList();
+    // 10. Friend requests — full sync, skip locally handled
+    friendRequests.length=0;if(d.friend_reqs&&d.friend_reqs.length>0){d.friend_reqs.forEach(function(fr){if(!_localReqActions[fr.from_user])friendRequests.push({from:fr.from_user,message:"",time:fmtTime(fr.created_at)});});}updateFriendBadge();renderFriendsList();
 
     // 11. Online users sync
     if(d.online_users&&d.online_users.length>0){var _onlineSet=new Set(d.online_users);allUsers.forEach(function(u){u.online=_onlineSet.has(u.id);});updateOnlineDisplay();}
@@ -3530,6 +3530,7 @@ let myFriends = [];
 let friendRequests = [];
 // Sent requests (outgoing: me → others)
 let sentRequests = [];
+var _localReqActions = {};
 
 let currentFriendTab = "my";
 
@@ -3705,6 +3706,7 @@ function sendFriendRequest(uid) {
 }
 
 function acceptRequest(uid) {
+  _localReqActions[uid]='accepted';
   const idx = friendRequests.findIndex(r => r.from === uid);
   var _sentIdx=sentRequests.findIndex(function(s){return s.to===uid;});
   if(_sentIdx>=0)sentRequests.splice(_sentIdx,1);
@@ -3715,7 +3717,7 @@ function acceptRequest(uid) {
   sb.from("friends").upsert({username:myProfile.name,friend_name:uid}).then(function(r){if(r.error)console.error("Friend add failed:",r.error);});
   sb.from("friends").upsert({username:uid,friend_name:myProfile.name}).then(function(r){if(r.error)console.error("Friend add reverse failed:",r.error);});
   // Mark the friend request as accepted so it disappears on the requester's side
-  sb.from("friend_requests").delete().eq("from_user",uid).eq("to_user",myProfile.name).then(function(r){if(r.error)console.error("Friend request cleanup failed:",r.error);});
+  sb.from("friend_requests").delete().eq("from_user",uid).eq("to_user",myProfile.name).then(function(r){if(r.error)console.error("Friend request cleanup failed:",r.error);else{delete _localReqActions[uid];}});
   // Notify the requester that their request was accepted
   deliverNotification(uid,'✅ 好友请求已通过！你们现在是好友了','好友');
   track('friend_add',{target_user:uid,source:_currentTab});
@@ -3737,12 +3739,13 @@ function acceptRequest(uid) {
 }
 
 function rejectRequest(uid) {
+  _localReqActions[uid]='rejected';
   const idx = friendRequests.findIndex(r => r.from === uid);
   var _sentIdx=sentRequests.findIndex(function(s){return s.to===uid;});
   if(_sentIdx>=0)sentRequests.splice(_sentIdx,1);
   const user = allUsers.find(u => u.id === uid);
   if (idx >= 0) friendRequests.splice(idx, 1);
-  sb.from("friend_requests").delete().eq("from_user",uid).eq("to_user",myProfile.name).then(function(r){if(r.error)console.error("Friend request reject failed:",r.error);});
+  sb.from("friend_requests").delete().eq("from_user",uid).eq("to_user",myProfile.name).then(function(r){if(r.error)console.error("Friend request reject failed:",r.error);else{delete _localReqActions[uid];}});
   updateFriendBadge();
   renderFriendsList();
   showToast(`已拒绝 ${user.name} 的好友请求`);
