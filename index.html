@@ -2315,17 +2315,25 @@ function setupRealtime(){
 }
 function pollUpdates(){
   if(!currentUser||document.hidden)return;
-  var since=sessionStorage.getItem("_poll_since")||Date.now();
-  sb.from("posts").select("*").gt("created_at",new Date(parseInt(since)).toISOString()).then(function(r){
+  var cursor=sessionStorage.getItem("_poll_cursor")||new Date(Date.now()-60000).toISOString();
+  var maxCreated='';
+  function noteCreated(list){if(list&&list.length){list.forEach(function(x){if(x.created_at&&x.created_at>maxCreated)maxCreated=x.created_at;});}}
+  function saveCursor(){if(maxCreated){sessionStorage.setItem("_poll_cursor",maxCreated);}}
+  sb.from("posts").select("*").gt("created_at",cursor).then(function(r){
+    noteCreated(r.data);
     if(r.data&&r.data.length>0){r.data.forEach(function(p){if(!posts.find(function(x){return x.id===p.id;})){posts.unshift({id:p.id,title:p.title,category:p.category,categoryLabel:p.category_label||"其他",maker:p.author,avatar:p.author_avatar,time:"刚刚",desc:p.content,platform:p.platform||"all",likes:p.likes||0,comments:p.comment_count||0});}});renderPosts("all");}
+    saveCursor();
   });
-  sb.from("notifications").select("*").eq("username",currentUser).gt("created_at",new Date(parseInt(since)).toISOString()).then(function(r){
+  sb.from("notifications").select("*").eq("username",currentUser).gt("created_at",cursor).then(function(r){
+    noteCreated(r.data);
     if(r.data&&r.data.length>0){r.data.forEach(function(n){saveNotify(emoFor(n.type),n.from_user+' → '+n.content.slice(0,30),n.content,actFor(n.type));});updateNotifyBadge();}
+    saveCursor();
   });
-  sb.from("chat_messages").select("*").eq("recipient",currentUser).eq("is_read",false).gt("created_at",new Date(parseInt(since)).toISOString()).then(function(r){
+  sb.from("chat_messages").select("*").eq("recipient",currentUser).eq("is_read",false).gt("created_at",cursor).then(function(r){
+    noteCreated(r.data);
     if(r.data&&r.data.length>0){renderChatMessages();updateChatBadge();renderChatContacts();}
+    saveCursor();
   });
-  sessionStorage.setItem("_poll_since",Date.now());
 }
 
 // ========================================
@@ -3166,7 +3174,14 @@ sb.from("notifications").insert({username:targetName,type:source||"系统",conte
 function checkNotifications(){ if(currentUser){ loadNotifications().then(function(list){ if(list.length>0){ var lastSeen=localStorage.getItem('creatorhub_notify_last_seen')||''; list.forEach(function(n){ if(n.created_at>lastSeen){ saveNotify(emoFor(n.type),n.from_user+' → '+n.content.slice(0,30),n.content,actFor(n.type)); } }); } updateNotifyBadge(); }); } }
 
 // Notification center — parallel to chat notifications, for the bell dropdown
+var _seenNotifs = JSON.parse(sessionStorage.getItem('_seen_notifs') || '{}');
 function saveNotify(emoji, title, body, action) {
+  var now = Date.now();
+  Object.keys(_seenNotifs).forEach(function(k){ if(now - _seenNotifs[k] > 10000) delete _seenNotifs[k]; });
+  var key = title + '|' + body + '|' + (action || '');
+  if (_seenNotifs[key]) { sessionStorage.setItem('_seen_notifs', JSON.stringify(_seenNotifs)); return; }
+  _seenNotifs[key] = now;
+  sessionStorage.setItem('_seen_notifs', JSON.stringify(_seenNotifs));
   var list = JSON.parse(localStorage.getItem('creatorhub_notify_list') || '[]');
   list.unshift({ emoji: emoji, title: title, body: body, action: action, time: Date.now(), read: false });
   if (list.length > 100) list.splice(100);
