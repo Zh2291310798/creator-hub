@@ -2314,8 +2314,8 @@ function pollUpdates(){
   sb.from("chat_messages").select("*").eq("recipient",currentUser).eq("is_read",false).gt("created_at",new Date(parseInt(since)).toISOString()).then(function(r){
     if(r.data&&r.data.length>0){renderChatMessages();updateChatBadge();renderChatContacts();}
   });
-  sb.from("comments").select("*").gt("created_at",new Date(parseInt(since)).toISOString()).then(function(r){if(r.data&&r.data.length>0){r.data.forEach(function(c){if(!postComments[c.post_id])postComments[c.post_id]=[];if(!postComments[c.post_id].find(function(x){return x.author===c.author&&x.text===c.content;})){postComments[c.post_id].push({author:c.author,text:c.content,time:fmtTime(c.created_at)});var _pp=posts.find(function(x){return x.id===c.post_id;});if(_pp)_pp.comments=(_pp.comments||0)+1;}});if(currentPostId&&postComments[currentPostId]){var _ov=document.getElementById("postFullview");if(_ov){var _ci=_ov.querySelector(".post-full-comments h3");if(_ci)_ci.textContent="💬 评论 ("+postComments[currentPostId].length+")";}}};renderPosts();});
-  sb.from("posts").select("id,likes,comment_count").gt("created_at",new Date(parseInt(since)-60000).toISOString()).then(function(r){if(r.data&&r.data.length>0){r.data.forEach(function(sp){var lp=posts.find(function(x){return x.id===sp.id;});if(lp&&(lp.likes!==sp.likes||lp.comments!==sp.comment_count)){lp.likes=sp.likes||0;lp.comments=sp.comment_count||0;}});renderPosts();}});
+  sb.from("comments").select("*").gt("created_at",new Date(parseInt(since)).toISOString()).then(function(r){if(r.data&&r.data.length>0){r.data.forEach(function(c){if(!postComments[c.post_id])postComments[c.post_id]=[];if(!postComments[c.post_id].find(function(x){return x.author===c.author&&x.text===c.content;})){postComments[c.post_id].push({author:c.author,text:c.content,time:fmtTime(c.created_at)});var _pp=posts.find(function(x){return x.id===c.post_id;});if(_pp)_pp.comments=postComments[c.post_id].length;}});if(currentPostId&&postComments[currentPostId]){var _ov=document.getElementById("postFullview");if(_ov){var _ci=_ov.querySelector(".post-full-comments h3");if(_ci)_ci.textContent="💬 评论 ("+postComments[currentPostId].length+")";}}};renderPosts();});
+  sb.from("posts").select("id,likes,comment_count").gt("created_at",new Date(parseInt(since)-60000).toISOString()).then(function(r){if(r.data&&r.data.length>0){r.data.forEach(function(sp){var lp=posts.find(function(x){return x.id===sp.id;});if(lp&&lp.likes!==sp.likes){lp.likes=sp.likes||0;}});renderPosts();}});
   sessionStorage.setItem("_poll_since",Date.now()-5000);
 }
 
@@ -3599,7 +3599,7 @@ function renderPosts(filter = 'all') {
       <p>${escapeHtml(p.desc)}</p>
       <div class="post-stats">
         <span onclick="event.stopPropagation();likePost('${p.id}')" style="cursor:pointer;" title="点赞">👍 ${p.likes}</span>
-        <span>💬 ${p.comments}</span>
+        <span>💬 ${(postComments[p.id]||[]).length||p.comments||0}</span>
       </div>
       <div class="card-foot">
         <div class="maker">
@@ -4006,7 +4006,7 @@ function renderProfile() {
         <span class="post-category ${p.category}">${p.categoryLabel}</span>
         <h3>${escapeHtml(p.title)}</h3>
         <p>${escapeHtml(p.desc)}</p>
-        <div class="post-stats"><span onclick="event.stopPropagation();likePost('${p.id}')" style="cursor:pointer;" title="点赞">👍 ${p.likes}</span><span>💬 ${p.comments}</span><span>${p.time}</span></div>
+        <div class="post-stats"><span onclick="event.stopPropagation();likePost('${p.id}')" style="cursor:pointer;" title="点赞">👍 ${p.likes}</span><span>💬 ${(postComments[p.id]||[]).length||p.comments||0}</span><span>${p.time}</span></div>
       </article>
     `).join('');
 
@@ -4126,12 +4126,14 @@ async function openPostDetail(postId) {
   h += '<div class="post-full-meta"><span class="avatar" style="'+avatarStyle(p.maker)+';display:inline-grid;width:36px;height:36px;vertical-align:middle;margin-right:8px;">'+p.avatar+'</span> '+escapeHtml(p.maker)+' · '+p.time+' · 👍 '+p.likes+' · 💬 '+p.comments+'</div></div>';
   h += '<div class="post-full-body"><p>'+escapeHtml(p.desc)+'</p><p style="color:rgba(45,45,45,.5);margin-top:16px;">（完整文章...支持长文、图片、Markdown）</p></div>';
   h += '<div class="post-full-comments"><h3>💬 评论 ('+cmts.length+')</h3>';
-  cmts.forEach(function(c){
-    h += '<div class="comment-item"><div class="comment-avatar" style="'+avatarStyle(c.author)+'">'+c.author.slice(0,1)+'</div><div class="comment-body"><b>'+escapeHtml(c.author)+'</b> <span class="comment-time">'+c.time+'</span><p>'+escapeHtml(c.text)+'</p></div></div>';
+  cmts.forEach(function(c,i){
+    h += '<div class="comment-item"><div class="comment-avatar" style="'+avatarStyle(c.author)+'">'+c.author.slice(0,1)+'</div><div class="comment-body"><b>'+escapeHtml(c.author)+'</b> <span class="comment-time">'+c.time+'</span>';
+    if(c.author===myProfile.name)h+=' <button class="mini-btn reject" onclick="deleteComment(\''+postId+'\','+i+')" style="font-size:11px;padding:1px 6px;">🗑</button>';
+    h+='<p>'+escapeHtml(c.text)+'</p></div></div>';
   });
   if(!cmts.length) h += '<p style="color:rgba(45,45,45,.4);">还没有评论，来说两句吧</p>';
   h += '</div>';
-  h += '<div class="post-full-input"><button class="btn" id="likeBtn" onclick="likePost(\''+p.id+'\')" style="background:#fff0f0;margin-bottom:8px;">👍 点赞 (' + (p.likes||0) + ')</button><br>'; h += '<div class="post-full-input"><input type="text" id="commentInput" placeholder="写下你的评论...（Enter 发送）" /><button class="btn" onclick="addComment()">发送</button>';
+  h += '<div class="post-full-input"><button class="btn" id="likeBtn" onclick="likePost(\''+p.id+'\')" style="background:#fff0f0;margin-bottom:8px;">'+(isLiked(p.id)?'❤️ 已赞':'👍 点赞')+' ('+(p.likes||0)+')</button><br>'; h += '<div class="post-full-input"><input type="text" id="commentInput" placeholder="写下你的评论...（Enter 发送）" /><button class="btn" onclick="addComment()">发送</button>';
   if(isMyPost) h += '<button class="btn" onclick="deletePost(\''+p.id+'\');closePostDetail();" style="background:#ffd6d6;margin-left:8px;">🗑 删除</button>';
   h += '</div></div>';
   document.body.insertAdjacentHTML('beforeend', h);
@@ -4146,21 +4148,28 @@ function closePostDetail() {
 }
 
 
-function likePost(postId) {
-  var p = posts.find(function(x){ return x.id === postId; });
-  if (!p) return;
-  p.likes = (p.likes || 0) + 1;
-  sb.from("posts").update({likes: p.likes}).eq("id", postId).then(function(r){
-    if(r.error) console.error("Like update failed:", r.error);
-  });
-  if (p.maker && p.maker !== myProfile.name) {
-    deliverNotification(p.maker, "❤️ 赞了你的帖子：「"+p.title.slice(0,30)+"」", "点赞");
+function isLiked(postId){var liked=JSON.parse(localStorage.getItem("creatorhub_liked_"+currentUser)||"[]");return liked.indexOf(postId)>=0;}
+function toggleLike(postId){var p=posts.find(function(x){return x.id===postId;});if(!p)return;var liked=JSON.parse(localStorage.getItem("creatorhub_liked_"+currentUser)||"[]");var idx=liked.indexOf(postId);if(idx>=0){liked.splice(idx,1);p.likes=Math.max(0,(p.likes||0)-1);sb.from("posts").update({likes:p.likes}).eq("id",postId).then(function(r){if(r.error)console.error("Unlike failed:",r.error);});track("post_unlike",{post_id:postId});var lb=document.getElementById("likeBtn");if(lb)lb.textContent="👍 点赞 ("+p.likes+")";}else{liked.push(postId);p.likes=(p.likes||0)+1;sb.from("posts").update({likes:p.likes}).eq("id",postId).then(function(r){if(r.error)console.error("Like failed:",r.error);});if(p.maker&&p.maker!==myProfile.name){deliverNotification(p.maker,"❤️ 赞了你的帖子：「"+p.title.slice(0,30)+"」","点赞");}track("post_like",{post_id:postId});addXP(5,"点赞");var lb=document.getElementById("likeBtn");if(lb)lb.textContent="👍 已赞 ("+p.likes+")";}localStorage.setItem("creatorhub_liked_"+currentUser,JSON.stringify(liked));renderPosts();}
+function likePost(postId){toggleLike(postId);}
+
+function deleteComment(postId, commentIdx, author, cmtText) {
+  if (author !== myProfile.name) { showToast("只能删除自己的评论"); return; }
+  if (!confirm("确定删除这条评论吗？")) return;
+  // Remove from local
+  if (postComments[postId]) {
+    postComments[postId].splice(commentIdx, 1);
+    var p = posts.find(function(x){ return x.id === postId; });
+    if (p) p.comments = postComments[postId].length;
   }
-  track("post_like", {post_id: postId});
-  addXP(5, "点赞");
-  var lb = document.getElementById("likeBtn");
-  if (lb) lb.textContent = "👍 已赞 (" + p.likes + ")";
+  // Remove from Supabase
+  sb.from("comments").delete().eq("post_id", postId).eq("author", author).eq("content", cmtText).then(function(r){
+    if(r.error) console.error("Comment delete failed:", r.error);
+    else sb.from("posts").update({comment_count: (postComments[postId]||[]).length}).eq("id", postId).then(function(){});
+  });
+  // Refresh detail if open
+  if (currentPostId === postId) openPostDetail(postId);
   renderPosts();
+  showToast("评论已删除");
 }
 function addComment() {
   var input=document.getElementById('commentInput');
@@ -4168,7 +4177,7 @@ function addComment() {
   var text=input.value.trim();
   if(!postComments[currentPostId])postComments[currentPostId]=[];
   postComments[currentPostId].push({author:myProfile.name,text:text,time:'刚刚'});
-  var p=posts.find(function(x){return x.id===currentPostId;});if(p)p.comments++;
+  var p=posts.find(function(x){return x.id===currentPostId;});if(p)p.comments=postComments[currentPostId].length;
   track('comment_create',{post_id:currentPostId,post_author:p?p.maker:''});
   // Notify post author (if not self)
   if(p&&p.maker&&p.maker!=='我'&&p.maker!==myProfile.name){deliverNotification(p.maker,'💬 评论了你的帖子：「'+text.slice(0,40)+(text.length>40?'...':'')+'」','社区评论');}
