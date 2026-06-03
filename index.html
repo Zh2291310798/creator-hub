@@ -2329,7 +2329,7 @@ function setupRealtime(){
     .on("postgres_changes",{event:"INSERT",schema:"public",table:"notifications",filter:"username=eq."+currentUser},
       function(p){if(p.new){saveNotify(emoFor(p.new.type),p.new.from_user+' → '+p.new.content.slice(0,30),p.new.content,actFor(p.new.type),p.new.created_at);}updateNotifyBadge();})
     .subscribe();
-  sb.channel("recruits-live").on("postgres_changes",{event:"INSERT",schema:"public",table:"recruits"},function(p){if(p.new){if(!recruits.find(function(x){return x.id===p.new.id;})){var _rn={id:p.new.id,title:p.new.title,poster:p.new.poster,avatar:p.new.poster_avatar||p.new.poster.slice(0,1),avatarBg:"",type:p.new.type||"maker",mode:p.new.mode||"全职",desc:p.new.description||"",detail:p.new.detail||p.new.description||"",budget:p.new.budget||"面议",city:p.new.city||"",platforms:typeof p.new.platforms==="string"?JSON.parse(p.new.platforms||"[]"):(p.new.platforms||[]),tags:typeof p.new.tags==="string"?JSON.parse(p.new.tags||"[]"):(p.new.tags||[]),status:p.new.status||"招募中",statusClass:p.new.status_class||"active-recruit"};recruits.unshift(_rn);renderRecruits();}}}).subscribe();
+  sb.channel("recruits-live").on("postgres_changes",{event:"INSERT",schema:"public",table:"recruits"},function(p){if(p.new){if(!recruits.find(function(x){return x.id===p.new.id;})){var _rn={id:p.new.id,title:p.new.title,poster:p.new.poster,postedBy:p.new.posted_by||p.new.poster||"",avatar:p.new.poster_avatar||p.new.poster.slice(0,1),avatarBg:"",type:p.new.type||"maker",mode:p.new.mode||"全职",desc:p.new.description||"",detail:p.new.detail||p.new.description||"",budget:p.new.budget||"面议",city:p.new.city||"",platforms:typeof p.new.platforms==="string"?JSON.parse(p.new.platforms||"[]"):(p.new.platforms||[]),tags:typeof p.new.tags==="string"?JSON.parse(p.new.tags||"[]"):(p.new.tags||[]),status:p.new.status||"招募中",statusClass:p.new.status_class||"active-recruit"};recruits.unshift(_rn);renderRecruits();}}}).subscribe();
   sb.channel("posts-live")
     .on("postgres_changes",{event:"INSERT",schema:"public",table:"posts"},
       function(p){if(p.new&&!posts.find(function(x){return x.id===p.new.id;})){posts.unshift({id:p.new.id,title:p.new.title,category:p.new.category,categoryLabel:p.new.category_label||"其他",maker:p.new.author,avatar:p.new.author_avatar,time:"刚刚",desc:p.new.content,platform:p.new.platform||"all",likes:p.new.likes||0,comments:p.new.comment_count||0});renderPosts();}})
@@ -3223,8 +3223,9 @@ function renderRecruits(filter) {
   var html = '';
   for (var i = 0; i < items.length; i++) {
     var r = items[i];
-    var posterName = (r && r.poster) || '匿名用户';
-    var posterAvatar = (r && r.avatar) || posterName.slice(0,1);
+    var companyName = (r && r.poster) || '';  // 公司/品牌名
+    var realPoster = (r && r.postedBy) || companyName || '匿名用户';  // 实际发帖人
+    var posterAvatar = (realPoster||'?').slice(0,1);
     var isMine = (r.postedBy === myProfile.name || r.poster === myProfile.name);
     var plats = (r && r.platforms) || [];
     if (typeof plats === 'string') { try { plats = JSON.parse(plats); } catch(_) { plats = []; } }
@@ -3236,6 +3237,7 @@ function renderRecruits(filter) {
     html += '<span class="card-no">#' + String(i+1).padStart(2,'0') + '</span>';
     html += '</div>';
     html += '<h3>' + escapeHtml(r.title||'') + '</h3>';
+    if (companyName) { html += '<div style="font-size:13px;color:rgba(45,45,45,.5);margin-bottom:2px;">🏢 ' + escapeHtml(companyName) + '</div>'; }
     html += '<div class="budget">' + escapeHtml(r.budget||'') + (r.mode ? ' · ' + escapeHtml(r.mode) : '') + (r.city ? ' · 📍' + escapeHtml(r.city) : '') + '</div>';
     html += '<p class="desc">' + escapeHtml(r.desc||'') + '</p>';
     html += '<div class="platform-tags">' + plats.map(platformTagHtml).join('') + '</div>';
@@ -3243,10 +3245,10 @@ function renderRecruits(filter) {
     html += '<div class="card-foot">';
     html += '<div class="maker">';
     html += '<span class="avatar ' + (r.avatarBg||'') + '">' + posterAvatar + '</span>';
-    html += '<span onclick="event.stopPropagation();showFriendProfile(\'' + r.poster + '\')" style="cursor:pointer;text-decoration:underline;font-weight:600;color:var(--red);" title="点击查看发布者主页">📝 ' + escapeHtml(posterName) + '</span>';
+    html += '<span onclick="event.stopPropagation();showFriendProfile(\'' + realPoster + '\')" style="cursor:pointer;text-decoration:underline;font-weight:600;color:var(--red);" title="点击查看发布者主页">📝 ' + escapeHtml(realPoster) + '</span>';
     html += '</div>';
     html += '<button class="btn" onclick="event.stopPropagation();openRecruitDrawer(\'' + r.id + '\')">查看详情</button>';
-    html += '<button class="mini-btn-link" onclick="event.stopPropagation();quickAddFriend(\'' + jsEscape(r.poster) + '\')" title="加好友">👥</button>';
+    html += '<button class="mini-btn-link" onclick="event.stopPropagation();quickAddFriend(\'' + jsEscape(realPoster) + '\')" title="加好友">👥</button>';
     if (isMine || isAdmin) { html += '<button class="mini-btn reject" onclick="event.stopPropagation();deleteRecruit(\'' + r.id + '\')" title="删除">🗑</button>'; }
     html += '</div>';
     html += '</article>';
@@ -3272,7 +3274,8 @@ function openRecruitDrawer(id) {
   document.getElementById('drawerDesc').textContent = r.desc;
   document.getElementById('drawerDetail').textContent = r.detail;
   document.getElementById('drawerBudget').textContent = r.budget;
-  var _dp=document.getElementById('drawerPoster');_dp.textContent=r.poster;_dp.style.cursor='pointer';_dp.style.textDecoration='underline';_dp.onclick=function(){closeDrawer();showFriendProfile(r.poster);};
+  var realPoster = r.postedBy || r.poster || '匿名用户';
+  var _dp=document.getElementById('drawerPoster');_dp.innerHTML='🏢 '+escapeHtml(r.poster||'')+'<br><span style="font-weight:600;color:var(--red);cursor:pointer;text-decoration:underline;" onclick="closeDrawer();showFriendProfile(\''+realPoster+'\')">📝 发布者：'+escapeHtml(realPoster)+'</span>';
   document.getElementById('drawerPlatforms').innerHTML = r.platforms.map(platformTagHtml).join('');
   document.getElementById('drawerTags').innerHTML = r.tags.map(t => '<span class=\"tag\">'+escapeHtml(t)+'</span>').join('');
   // Render comments
