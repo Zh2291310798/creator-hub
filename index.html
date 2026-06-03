@@ -2200,6 +2200,8 @@ async function loadSession(user){
   if((role==='student'||role==='career_switcher')&&!localStorage.getItem('creatorhub_onboarding_'+currentUser)){setTimeout(function(){showOnboarding();},500);}
   setTimeout(function(){checkNotifications();},600);
   setTimeout(function(){updateNotifyBadge();},700);
+  // Mark online immediately
+  sb.from('profiles').update({last_seen:new Date().toISOString()}).eq('username',myProfile.name).then(function(){}).catch(function(){});
   showToast('欢迎回来，'+myProfile.name+'！👋');
 }
 
