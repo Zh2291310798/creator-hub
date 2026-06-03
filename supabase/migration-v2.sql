@@ -156,3 +156,42 @@ ALTER TABLE profiles ADD COLUMN IF NOT EXISTS trust_score INTEGER DEFAULT 0;
 CREATE INDEX IF NOT EXISTS idx_reviews_reviewee ON reviews(reviewee);
 CREATE INDEX IF NOT EXISTS idx_invitation_inviter ON invitation_codes(inviter_username);
 CREATE INDEX IF NOT EXISTS idx_match_deal_status ON match_demands(deal_status);
+
+CREATE OR REPLACE FUNCTION get_poll_updates(
+  since_ts timestamptz,
+  username_query text,
+  post_ids text[]
+)
+RETURNS jsonb AS $$
+DECLARE
+  result jsonb;
+BEGIN
+  SELECT jsonb_build_object(
+    'new_posts', COALESCE((SELECT jsonb_agg(row_to_json(t)) FROM (
+      SELECT * FROM posts WHERE created_at > since_ts ORDER BY created_at DESC LIMIT 20
+    ) t), '[]'::jsonb),
+    'notifs', COALESCE((SELECT jsonb_agg(row_to_json(t)) FROM (
+      SELECT * FROM notifications WHERE username = username_query AND created_at > since_ts ORDER BY created_at DESC LIMIT 20
+    ) t), '[]'::jsonb),
+    'chat_msgs', COALESCE((SELECT jsonb_agg(row_to_json(t)) FROM (
+      SELECT * FROM chat_messages WHERE (sender = username_query OR recipient = username_query) AND created_at > since_ts ORDER BY created_at ASC LIMIT 50
+    ) t), '[]'::jsonb),
+    'new_comments', COALESCE((SELECT jsonb_agg(row_to_json(t)) FROM (
+      SELECT * FROM comments WHERE post_id = ANY(post_ids) AND created_at > since_ts ORDER BY created_at ASC LIMIT 30
+    ) t), '[]'::jsonb),
+    'likes_sync', COALESCE((SELECT jsonb_agg(row_to_json(t)) FROM (
+      SELECT id AS post_id, likes FROM posts WHERE id = ANY(post_ids) AND updated_at > since_ts
+    ) t), '[]'::jsonb),
+    'new_recruits', COALESCE((SELECT jsonb_agg(row_to_json(t)) FROM (
+      SELECT * FROM recruits WHERE created_at > since_ts ORDER BY created_at DESC LIMIT 10
+    ) t), '[]'::jsonb),
+    'new_matches', COALESCE((SELECT jsonb_agg(row_to_json(t)) FROM (
+      SELECT * FROM match_demands WHERE created_at > since_ts ORDER BY created_at DESC LIMIT 10
+    ) t), '[]'::jsonb),
+    'new_local', COALESCE((SELECT jsonb_agg(row_to_json(t)) FROM (
+      SELECT * FROM local_demands WHERE created_at > since_ts ORDER BY created_at DESC LIMIT 10
+    ) t), '[]'::jsonb)
+  ) INTO result;
+  RETURN result;
+END;
+$$ LANGUAGE plpgsql STABLE;

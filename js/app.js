@@ -199,29 +199,57 @@ function setupRealtime(){
       function(p){if(p.new){posts.unshift(normalizePost(p.new));renderPosts("all");}})
     .subscribe();
   console.log("Realtime channels subscribed for "+currentUser);
-  window._pollTimer=setInterval(pollUpdates,3000);
+  window._pollTimer=setInterval(pollUpdates,10000);
+  setupPollingOptimizers();
 }
 function pollUpdates(){
   if(!currentUser||document.hidden)return;
-  var cursor=sessionStorage.getItem("_poll_cursor")||new Date(Date.now()-60000).toISOString();
-  var maxCreated='';
-  function noteCreated(list){if(list&&list.length){list.forEach(function(x){if(x.created_at&&x.created_at>maxCreated)maxCreated=x.created_at;});}}
-  function saveCursor(){if(maxCreated){sessionStorage.setItem("_poll_cursor",maxCreated);}}
-  sb.from("posts").select("*").gt("created_at",cursor).then(function(r){
-    noteCreated(r.data);
-    if(r.data&&r.data.length>0){r.data.forEach(function(p){if(!posts.find(function(x){return x.id===p.id;})){posts.push(normalizePost(p));}});renderPosts("all");}
-    saveCursor();
-  }).catch(showLoadError);
-  sb.from("notifications").select("*").eq("username",currentUser).gt("created_at",cursor).then(function(r){
-    noteCreated(r.data);
-    if(r.data&&r.data.length>0){r.data.forEach(function(n){saveNotify(emoFor(n.type),n.from_user+' → '+n.content.slice(0,30),n.content,actFor(n.type));});updateNotifyBadge();}
-    saveCursor();
-  }).catch(showLoadError);
-  sb.from("chat_messages").select("*").eq("recipient",currentUser).eq("is_read",false).gt("created_at",cursor).then(function(r){
-    noteCreated(r.data);
-    if(r.data&&r.data.length>0){renderChatMessages();updateChatBadge();renderChatContacts();}
-    saveCursor();
-  }).catch(showLoadError);
+  var sinceISO=sessionStorage.getItem("_poll_cursor")||new Date(Date.now()-10000).toISOString();
+  var _pids=posts.slice(0,100).map(function(p){return p.id;});
+  sb.rpc('get_poll_updates',{since_ts:sinceISO,username_query:currentUser,post_ids:_pids}).then(function(r){
+    if(r.error){console.error("Poll RPC failed:",r.error);return;}
+    var d=r.data;if(!d)return;
+    (d.new_posts||[]).forEach(function(p){if(!posts.find(function(x){return x.id===p.id;}))posts.push(normalizePost(p));});
+    if((d.new_posts||[]).length>0)renderPosts("all");
+    (d.notifs||[]).forEach(function(n){saveNotify(emoFor(n.type),n.from_user+' → '+n.content.slice(0,30),n.content,actFor(n.type),n.created_at);});
+    if((d.notifs||[]).length>0)updateNotifyBadge();
+    (d.chat_msgs||[]).forEach(function(m){
+      var other=m.sender===currentUser?m.recipient:m.sender;
+      var cid="c_"+[currentUser,other].sort().join("_");
+      var ct=contacts.find(function(c){return c.id===cid||c.id==='f_'+other||c.name===other;});
+      if(!ct){ct={id:cid,name:other,avatar:other.slice(0,1),avatarBg:"",platform:"all",unread:0,lastMsg:"",messages:[]};contacts.push(ct);}
+      var foundMsg=ct.messages.find(function(x){return x.text===m.content&&x.from===(m.sender===currentUser?"me":"them");});
+      if(!foundMsg){var msgTime=new Date(m.created_at).toLocaleTimeString("zh-CN",{hour:"2-digit",minute:"2-digit"});ct.messages.push({from:m.sender===currentUser?"me":"them",text:m.content,time:msgTime});ct.lastMsg=m.content.slice(0,30);if(m.sender!==currentUser&&!m.is_read)ct.unread=(ct.unread||0)+1;}
+    });
+    if((d.chat_msgs||[]).length>0){renderChatMessages();updateChatBadge();renderChatContacts();}
+    (d.new_comments||[]).forEach(function(c){if(!postComments[c.post_id])postComments[c.post_id]=[];if(!postComments[c.post_id].find(function(x){return x.author===c.author&&x.text===c.content;}))postComments[c.post_id].push({author:c.author,text:c.content,time:formatTime(c.created_at)});});
+    if((d.new_comments||[]).length>0)renderPosts("all");
+    if((d.likes_sync||[]).length>0){d.likes_sync.forEach(function(ls){var pp=posts.find(function(x){return x.id===ls.post_id;});if(pp)pp.likes=ls.likes;});renderPosts("all");}
+    (d.new_recruits||[]).forEach(function(r){if(!recruits.find(function(x){return x.id===r.id;}))recruits.unshift(r);});
+    if((d.new_recruits||[]).length>0)renderRecruits();
+    (d.new_matches||[]).forEach(mergeMatchDemandRow);
+    if((d.new_matches||[]).length>0)renderMatch();
+    (d.new_local||[]).forEach(function(ld){if(!localDemands.find(function(x){return x.id===ld.id;}))localDemands.unshift(ld);});
+    if((d.new_local||[]).length>0)renderLocalMatch();
+    var maxTs=d._max_ts;
+    if(!maxTs){var allRows=[].concat(d.new_posts||[],d.notifs||[],d.chat_msgs||[],d.new_comments||[],d.new_recruits||[],d.new_matches||[],d.new_local||[]);if(allRows.length>0){maxTs=allRows.reduce(function(m,row){var t=row.created_at;return t&&t>m?t:m;},"");}}
+    if(maxTs)sessionStorage.setItem("_poll_cursor",maxTs);
+  });
+}
+function setupPollingOptimizers(){
+  if(!window._pollVisibilityBound){
+    window._pollVisibilityBound=true;
+    document.addEventListener('visibilitychange',function(){
+      if(window._pollTimer)clearInterval(window._pollTimer);
+      if(!document.hidden){pollUpdates();window._pollTimer=setInterval(pollUpdates,10000);}
+      else window._pollTimer=setInterval(pollUpdates,30000);
+    });
+  }
+  if(!window._heartbeatTimer){
+    window._heartbeatTimer=setInterval(function(){
+      if(currentUser)sb.from('profiles').update({last_seen:new Date().toISOString()}).eq('username',currentUser).then(function(){}).catch(function(){});
+    },30000);
+  }
 }
 
 // ========================================
@@ -244,7 +272,7 @@ async function loadAllData(){
     if(rl.data&&rl.data.length>0){localStorage.setItem("creatorhub_local_demands",JSON.stringify(rl.data));}
     // Load v2 match demands with deal state
     var rm=await sb.from("match_demands").select("*").order("created_at",{ascending:false}).limit(100);
-    if(rm.data&&rm.data.length>0){rm.data.forEach(function(d){var isBrand=d.role==='品牌方'||d.role==='brand';var arr=isBrand?brandSeekingData:creatorSeekingData;if(arr.find(function(x){return x.id===d.id;}))return;var item={id:d.id,title:(d.description||'对接需求').split(' · ')[0],budget:d.budget||'面议',desc:d.description||'',detail:d.description||'',platforms:safeArray(d.platforms),tags:['对接'],deal_status:d.deal_status||'open',deal_partner:d.deal_partner||''};if(isBrand){item.brand=d.poster;item.avatar=(d.poster||'品').slice(0,1);item.avatarBg='';}else{item.creator=d.poster;item.avatar=(d.poster||'达').slice(0,1);item.avatarBg='';}arr.unshift(item);});}
+    if(rm.data&&rm.data.length>0){rm.data.forEach(mergeMatchDemandRow);}
     // Load friends
     var rf=await sb.from("friends").select("friend_name").eq("username",currentUser);
     if(rf.data&&rf.data.length>0){myFriends=rf.data.map(function(f){return f.friend_name;});localStorage.setItem("creatorhub_friends_"+currentUser,JSON.stringify(myFriends));}
@@ -923,6 +951,7 @@ document.querySelectorAll('.tab-btn').forEach(function(btn){
 
 function ensureDealsUI(){var nav=document.getElementById('tabNav');if(nav&&!document.querySelector('[data-tab="deals"]')){var btn=document.createElement('button');btn.className='tab-btn';btn.dataset.tab='deals';btn.textContent='📋 我的对接';btn.addEventListener('click',function(){switchTab('deals');});nav.insertBefore(btn,document.querySelector('[data-tab="friends"]')||null);}if(!document.getElementById('panel-deals')){var panel=document.createElement('section');panel.className='section-panel';panel.id='panel-deals';panel.innerHTML='<div class="panel-header section-head"><div><span class="sticky-label">交易闭环</span><h2 class="section-title">📋 我的对接</h2></div></div><div id="myDealsGrid" class="my-deals-grid"></div>';var profile=document.getElementById('panel-profile');if(profile&&profile.parentNode)profile.parentNode.insertBefore(panel,profile);else document.getElementById('mainApp').appendChild(panel);}}
 function normalizeDealItem(d,type){var isBrand=type==='brand';return {id:d.id,title:d.title||d.description||'对接需求',poster:isBrand?(d.brand||d.poster):(d.creator||d.poster),role:isBrand?'品牌方':'达人',platforms:safeArray(d.platforms),budget:d.budget||'面议',description:d.desc||d.description||d.detail||'',deal_status:d.deal_status||'open',deal_partner:d.deal_partner||'',source:d};}
+function mergeMatchDemandRow(d){var isBrand=d.role==='品牌方'||d.role==='brand';var arr=isBrand?brandSeekingData:creatorSeekingData;if(arr.find(function(x){return x.id===d.id;}))return;var item={id:d.id,title:(d.description||'对接需求').split(' · ')[0],budget:d.budget||'面议',desc:d.description||'',detail:d.description||'',platforms:safeArray(d.platforms),tags:['对接'],deal_status:d.deal_status||'open',deal_partner:d.deal_partner||''};if(isBrand){item.brand=d.poster;item.avatar=(d.poster||'品').slice(0,1);item.avatarBg='';}else{item.creator=d.poster;item.avatar=(d.poster||'达').slice(0,1);item.avatarBg='';}arr.unshift(item);}
 function getMatchDemands(){return brandSeekingData.map(function(d){return normalizeDealItem(d,'brand');}).concat(creatorSeekingData.map(function(d){return normalizeDealItem(d,'creator');}));}
 function updateDealLocal(dealId,fields){[brandSeekingData,creatorSeekingData].forEach(function(arr){var d=arr.find(function(x){return x.id===dealId;});if(d)Object.keys(fields).forEach(function(k){d[k]=fields[k];});});}
 function relatedDealForActiveContact(){if(!activeContact||activeContact.id==='world')return null;var name=activeContact.name;return getMatchDemands().find(function(d){return (d.poster===currentUser&&d.deal_partner===name)||(d.poster===name&&d.deal_partner===currentUser)||(d.poster===name&&d.deal_status==='open')||(d.poster===currentUser&&name&&d.deal_status==='open');})||null;}
