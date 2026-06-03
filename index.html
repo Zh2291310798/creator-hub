@@ -2377,6 +2377,8 @@ function pollUpdates(){
 
     // 10. Friend requests — atomic rebuild, skip locally handled
     var _newReqs=[];if(d.friend_reqs&&d.friend_reqs.length>0){d.friend_reqs.forEach(function(fr){if(!_localReqActions[fr.from_user])_newReqs.push({from:fr.from_user,message:"",time:fmtTime(fr.created_at)});});}friendRequests.length=0;_newReqs.forEach(function(fr){friendRequests.push(fr);});updateFriendBadge();renderFriendsList();
+    // Also sync sent requests
+    sentRequests.length=0;if(d.sent_reqs&&d.sent_reqs.length>0){d.sent_reqs.forEach(function(sr){sentRequests.push({to:sr.to_user,time:""});});}
 
     // 11. Online users sync
     if(d.online_users&&d.online_users.length>0){var _onlineSet=new Set(d.online_users);allUsers.forEach(function(u){u.online=_onlineSet.has(u.id);});updateOnlineDisplay();}
@@ -2946,7 +2948,7 @@ function renderWorldChat() {
     var avatarLetter = m.from === '系统' ? '🤖' : m.from.slice(0,1);
     return '<div class="msg-bubble ' + (isMe ? 'mine' : 'theirs') + '" style="max-width:80%;">' +
       '<div style="font-size:12px;color:rgba(45,45,45,.5);margin-bottom:2px;">' +
-      (isMe ? '' : '<span style="font-weight:700;">' + escapeHtml(m.from) + '</span> · ') + m.time +
+      (isMe ? '' : '<span style="font-weight:700;cursor:pointer;text-decoration:underline;" onclick="event.stopPropagation();showFriendProfile(\''+m.from+'\')">' + escapeHtml(m.from) + '</span> · ') + m.time +
       '</div>' + escapeHtml(m.text) + '</div>';
   }).join('');
   container.scrollTop = container.scrollHeight;
@@ -2977,7 +2979,7 @@ function selectContact(id) {
   // Update chat header
   document.getElementById('chatAvatar').textContent = activeContact.avatar;
   document.getElementById('chatAvatar').style.background = activeContact.avatarBg ? '' : 'var(--avatar)';
-  document.getElementById('chatName').textContent = activeContact.name;
+  var _cn=document.getElementById('chatName');_cn.textContent=activeContact.name;_cn.style.cursor='pointer';_cn.style.textDecoration='underline';_cn.onclick=function(){showFriendProfile(activeContact.name);};
   const platformTag = document.getElementById('chatPlatformTag');
   if (activeContact.platform !== 'all') {
     platformTag.innerHTML = platformTagHtml(activeContact.platform);
@@ -3170,7 +3172,7 @@ function renderRecruits(filter = 'all') {
       <div class="card-foot">
         <div class="maker">
           <span class="avatar ${r.avatarBg}">${r.avatar}</span>
-          <span>${escapeHtml(r.poster)}</span>
+          <span onclick="event.stopPropagation();showFriendProfile('${r.poster}')" style="cursor:pointer;text-decoration:underline;" title="查看主页">${escapeHtml(r.poster)}</span>
         </div>
         <button class="btn" onclick="event.stopPropagation();openRecruitDrawer('${r.id}')">查看详情</button>
         <button class="mini-btn-link" onclick="event.stopPropagation();quickAddFriend('${jsEscape(r.poster)}')" title="加好友">👥</button>
@@ -3195,7 +3197,7 @@ function openRecruitDrawer(id) {
   document.getElementById('drawerDesc').textContent = r.desc;
   document.getElementById('drawerDetail').textContent = r.detail;
   document.getElementById('drawerBudget').textContent = r.budget;
-  document.getElementById('drawerPoster').textContent = r.poster;
+  var _dp=document.getElementById('drawerPoster');_dp.textContent=r.poster;_dp.style.cursor='pointer';_dp.style.textDecoration='underline';_dp.onclick=function(){closeDrawer();showFriendProfile(r.poster);};
   document.getElementById('drawerPlatforms').innerHTML = r.platforms.map(platformTagHtml).join('');
   document.getElementById('drawerTags').innerHTML = r.tags.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('');
   // Restore recruit actions
@@ -3476,7 +3478,7 @@ function _renderPostsCore(filter = 'all') {
       <div class="card-foot">
         <div class="maker">
           <span class="avatar">${p.avatar}</span>
-          <span>${escapeHtml(p.maker)}</span>
+          <span onclick="event.stopPropagation();showFriendProfile('${p.maker}')" style="cursor:pointer;text-decoration:underline;" title="查看主页">${escapeHtml(p.maker)}</span>
         </div>
         <span style="font-size:14px;color:rgba(45,45,45,.5);">${p.time}</span>
         ${p.maker === '我' || p.maker === myProfile.name || isAdmin ? '<button class="mini-btn reject" onclick="event.stopPropagation();deletePost(\'' + p.id + '\')" title="删除">🗑</button>' : ''}
@@ -3697,7 +3699,7 @@ function showFriendProfile(uid) {
 function sendFriendRequest(uid) {
   if (uid === currentUser || uid === myProfile.name) { showToast('不能加自己为好友'); return; }
   if (myFriends.includes(uid)) { showToast('你们已经是好友了！'); return; }
-  if (sentRequests.some(function(s){return s.to===uid;})) { showToast('已经发送过好友请求了'); return; }
+  if (sentRequests.some(function(s){return s.to===uid;})) { showToast('已经发送过好友请求了，等待对方回应'); return; }
   if (friendRequests.some(function(r){return r.from===uid;})) { showToast('对方已经向你发送了好友请求，请直接接受'); return; }
   const user = allUsers.find(u => u.id === uid);
   sentRequests.push({to:uid,time:'刚刚'});sb.from("friend_requests").upsert({from_user:myProfile.name,to_user:uid,status:"pending"},{onConflict:"from_user,to_user"}).then(function(r){if(r.error)console.error("Friend request failed:",r.error);});
@@ -3750,7 +3752,8 @@ function rejectRequest(uid) {
   sb.from("friend_requests").delete().eq("from_user",uid).eq("to_user",myProfile.name).then(function(r){if(r.error)console.error("Friend request reject failed:",r.error);else{delete _localReqActions[uid];}});
   updateFriendBadge();
   renderFriendsList();
-  showToast(`已拒绝 ${user.name} 的好友请求`);
+  deliverNotification(uid,'❌ 好友请求被拒绝，你可以再次发送申请','好友');
+  showToast('已拒绝 '+user.name+' 的好友请求，对方可重新申请');
 }
 
 function removeFriend(uid) {
@@ -3977,7 +3980,11 @@ async function openPostDetail(postId) {
   h += '<span class="post-category '+p.category+'">'+p.categoryLabel+'</span>';
   if(pHtml) h += '<div class="platform-tags" style="margin-top:8px;">'+pHtml+'</div>';
   h += '<h1 class="post-full-title">'+escapeHtml(p.title)+'</h1>';
-  h += '<div class="post-full-meta"><span class="avatar" style="'+avatarStyle(p.maker)+';display:inline-grid;width:36px;height:36px;vertical-align:middle;margin-right:8px;">'+p.avatar+'</span> '+escapeHtml(p.maker)+' · '+p.time+' · 👍 '+p.likes+' · 💬 '+p.comments+'</div></div>';
+  h += '<div class="post-full-meta"><span class="avatar" style="'+avatarStyle(p.maker)+';display:inline-grid;width:36px;height:36px;vertical-align:middle;margin-right:8px;cursor:pointer;" onclick="event.stopPropagation();showFriendProfile(\''+p.maker+'\')">'+p.avatar+'</span> <span style="cursor:pointer;text-decoration:underline;" onclick="event.stopPropagation();showFriendProfile(\''+p.maker+'\')">'+escapeHtml(p.maker)+'</span> · '+p.time+' · 👍 '+p.likes+' · 💬 '+p.comments+'</div>';
+h += '<div style="margin:8px 0;">';
+if(p.maker!==myProfile.name&&!myFriends.includes(p.maker))h+='<button class="btn" onclick="event.stopPropagation();sendFriendRequest(\''+p.maker+'\')" style="font-size:14px;margin-right:6px;">👥 加好友</button>';
+if(p.maker!==myProfile.name)h+='<button class="btn" onclick="event.stopPropagation();chatWithFriend(\''+p.maker+'\')" style="font-size:14px;">💬 私聊</button>';
+h+='</div></div>';
   h += '<div class="post-full-body"><p>'+escapeHtml(p.desc)+'</p><p style="color:rgba(45,45,45,.5);margin-top:16px;">（完整文章...支持长文、图片、Markdown）</p></div>';
   h += '<div class="post-full-comments"><h3>💬 评论 ('+cmts.length+')</h3>';
   cmts.forEach(function(c,i){
