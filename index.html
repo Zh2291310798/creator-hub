@@ -2654,6 +2654,7 @@ function closeMatchMsg(){
 // Friend request message dialog
 var _friendReqTarget = '';
 function openFriendReqDialog(uid, sourceName) {
+  console.log('openFriendReqDialog called', uid, sourceName);
   if (uid === currentUser || uid === myProfile.name) { showToast('不能加自己为好友'); return; }
   if (myFriends.includes(uid)) { showToast('你们已经是好友了！'); return; }
   if (sentRequests.some(function(s){return s.to===uid;})) { showToast('已经发送过好友请求了，等待对方回应'); return; }
@@ -2661,10 +2662,13 @@ function openFriendReqDialog(uid, sourceName) {
   _friendReqTarget = uid;
   var user = allUsers.find(function(u){return u.id===uid;});
   var displayName = sourceName || (user ? user.name : uid);
+  var dlg = document.getElementById('friendReqDialog');
+  if (!dlg) { console.error('friendReqDialog element not found in DOM'); showToast('弹窗加载失败，请刷新页面'); return; }
   document.getElementById('friendReqTarget').textContent = displayName;
   document.getElementById('friendReqInput').value = '';
-  document.getElementById('friendReqDialog').classList.add('show');
-  setTimeout(function(){ document.getElementById('friendReqInput').focus(); },200);
+  dlg.classList.add('show');
+  console.log('friendReqDialog should be visible now');
+  setTimeout(function(){ var inp=document.getElementById('friendReqInput');if(inp)inp.focus(); },200);
 }
 function closeFriendReqDialog(){
   document.getElementById('friendReqDialog').classList.remove('show');
@@ -3501,42 +3505,46 @@ function createPost() {
   });
 }
 
-function _renderPostsCore(filter = 'all') {
-  let items = filter === 'all' ? posts : posts.filter(p => p.category === filter);
-  dom.postGrid.innerHTML = items.map((p, i) => {
-    var makerName = p.maker || '匿名用户';
-    var makerAvatar = p.avatar || makerName.slice(0,1);
-    var isMine = p.maker === myProfile.name;
-    var isFriend = myFriends.includes(p.maker);
-    var contactBtn = '';
+function _renderPostsCore(filter) {
+  try {
+  filter = filter || 'all';
+  var items = filter === 'all' ? posts : posts.filter(function(p){return p.category === filter;});
+  if (!dom.postGrid) return;
+  var html = '';
+  for (var i = 0; i < items.length; i++) {
+    var p = items[i];
+    var makerName = (p && p.maker) || '匿名用户';
+    var makerAvatar = (p && p.avatar) || makerName.slice(0,1);
+    var isMine = p && p.maker === (myProfile && myProfile.name);
+    var isFriend = myFriends && myFriends.indexOf(p.maker) >= 0;
+    html += '<article class="post-card" style="--tilt:' + randTilt(i) + ';--tape:' + randTape(i) + ';cursor:pointer;" onclick="openPostDetail(\'' + p.id + '\')">';
+    html += '<span class="post-category ' + (p.category||'') + '">' + escapeHtml(p.categoryLabel||'') + '</span>';
+    html += '<h3>' + escapeHtml(p.title||'') + '</h3>';
+    if (p.platform && p.platform !== 'all') { html += '<div class="platform-tags" style="margin:6px 0;">' + platformTagHtml(p.platform) + '</div>'; }
+    html += '<p>' + escapeHtml(p.desc||'') + '</p>';
+    html += '<div class="post-stats">';
+    html += '<span onclick="event.stopPropagation();likePost(\'' + p.id + '\')" style="cursor:pointer;" title="点赞">👍 ' + (p.likes||0) + '</span>';
+    html += '<span>💬 ' + ((postComments[p.id]||[]).length||p.comments||0) + '</span>';
+    html += '</div>';
+    html += '<div class="card-foot">';
+    html += '<div class="maker">';
+    html += '<span class="avatar">' + makerAvatar + '</span>';
+    html += '<span onclick="event.stopPropagation();showFriendProfile(\'' + p.maker + '\')" style="cursor:pointer;text-decoration:underline;font-weight:600;color:var(--red);" title="点击查看发布者主页">📝 ' + escapeHtml(makerName) + '</span>';
+    html += '</div>';
+    html += '<span style="font-size:13px;color:rgba(45,45,45,.4);">' + escapeHtml(p.time||'') + '</span>';
     if (!isMine && p.maker) {
       if (isFriend) {
-        contactBtn = '<button class="mini-btn msg" onclick="event.stopPropagation();chatWithFriend(\'' + p.maker + '\')" title="私聊">💬 联系TA</button>';
+        html += '<button class="mini-btn msg" onclick="event.stopPropagation();chatWithFriend(\'' + p.maker + '\')" title="私聊">💬 联系TA</button>';
       } else {
-        contactBtn = '<button class="mini-btn add" onclick="event.stopPropagation();sendFriendRequest(\'' + p.maker + '\')" title="加好友接单">👥 加好友接单</button>';
+        html += '<button class="mini-btn add" onclick="event.stopPropagation();sendFriendRequest(\'' + p.maker + '\')" title="加好友接单">👥 加好友接单</button>';
       }
     }
-    return `
-    <article class="post-card" style="--tilt:${randTilt(i)};--tape:${randTape(i)};cursor:pointer;" onclick="openPostDetail('${p.id}')">
-      <span class="post-category ${p.category}">${p.categoryLabel}</span>
-      <h3>${escapeHtml(p.title)}</h3>
-      ${p.platform && p.platform !== 'all' ? '<div class="platform-tags" style="margin:6px 0;">' + platformTagHtml(p.platform) + '</div>' : ''}
-      <p>${escapeHtml(p.desc)}</p>
-      <div class="post-stats">
-        <span onclick="event.stopPropagation();likePost('${p.id}')" style="cursor:pointer;" title="点赞">👍 ${p.likes}</span>
-        <span>💬 ${(postComments[p.id]||[]).length||p.comments||0}</span>
-      </div>
-      <div class="card-foot">
-        <div class="maker">
-          <span class="avatar">${makerAvatar}</span>
-          <span onclick="event.stopPropagation();showFriendProfile('${p.maker}')" style="cursor:pointer;text-decoration:underline;font-weight:600;color:var(--red);" title="点击查看发布者主页">📝 ${escapeHtml(makerName)}</span>
-        </div>
-        <span style="font-size:13px;color:rgba(45,45,45,.4);">${p.time}</span>
-        ${contactBtn}
-        ${isMine || isAdmin ? '<button class="mini-btn reject" onclick="event.stopPropagation();deletePost(\'' + p.id + '\')" title="删除">🗑</button>' : ''}
-      </div>
-    </article>
-  `;}).join('');
+    if (isMine || isAdmin) { html += '<button class="mini-btn reject" onclick="event.stopPropagation();deletePost(\'' + p.id + '\')" title="删除">🗑</button>'; }
+    html += '</div>';
+    html += '</article>';
+  }
+  dom.postGrid.innerHTML = html;
+  } catch(e) { console.error('_renderPostsCore error:', e); }
 }
 
 var _renderTimer=null;
@@ -4004,7 +4012,7 @@ async function openPostDetail(postId) {
   if (!p) return;
   if(!postComments[postId]){var _sc=await sb.from("comments").select("*").eq("post_id",postId).order("created_at",{ascending:true});if(_sc.data&&_sc.data.length>0){postComments[postId]=[];_sc.data.forEach(function(c){postComments[postId].push({author:c.author,text:c.content,time:fmtTime(c.created_at)});});}}
   var cmts = postComments[p.id] || [];
-  var isMyPost = p.maker === '我' || p.maker === myProfile.name;
+  var isMyPost = p.maker === '我' || (myProfile && p.maker === myProfile.name);
   var pHtml = p.platform && p.platform !== 'all' ? platformTagHtml(p.platform) : '';
   document.getElementById('overlay').classList.add('show');
   document.getElementById('overlay').onclick = closePostDetail;
@@ -4019,7 +4027,7 @@ async function openPostDetail(postId) {
   h += '<div class="post-full-meta"><span class="avatar" style="'+avatarStyle(_makerName)+';display:inline-grid;width:36px;height:36px;vertical-align:middle;margin-right:8px;cursor:pointer;" onclick="event.stopPropagation();showFriendProfile(\''+p.maker+'\')">'+_makerAvatar+'</span> <span style="cursor:pointer;text-decoration:underline;font-weight:600;color:var(--red);" onclick="event.stopPropagation();showFriendProfile(\''+p.maker+'\')">📝 '+escapeHtml(_makerName)+'</span> · '+p.time+' · 👍 '+p.likes+' · 💬 '+p.comments+'</div>';
   h += '<div style="margin:10px 0;padding:10px 14px;background:var(--postit);border-radius:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">';
   h += '<span style="font-size:14px;font-weight:600;">📞 想合作接单？</span>';
-  if(p.maker!==myProfile.name&&p.maker){
+  if(p.maker && myProfile && p.maker!==myProfile.name){
     if(myFriends.includes(p.maker)){
       h+='<button class="btn" onclick="event.stopPropagation();chatWithFriend(\''+p.maker+'\')" style="font-size:14px;">💬 私聊TA</button>';
     } else {
