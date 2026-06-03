@@ -287,6 +287,7 @@ CREATE POLICY "profile_insert_own" ON profiles FOR INSERT
 -- 删除：仅自己的数据
 CREATE POLICY "posts_delete_own_auth" ON posts FOR DELETE
   USING (auth.uid() IS NOT NULL);
+CREATE POLICY "posts_update_own_auth" ON posts FOR UPDATE USING (auth.uid() IS NOT NULL);
 CREATE POLICY "recruits_delete_own_auth" ON recruits FOR DELETE
   USING (auth.uid() IS NOT NULL);
 CREATE POLICY "local_delete_own_auth" ON local_demands FOR DELETE
