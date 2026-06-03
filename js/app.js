@@ -59,8 +59,10 @@ const sb=supabase.createClient(SB_URL,SB_KEY);
 // ========================================
 var currentUser=null;
 var myProfileId=null;
+var isAdmin=false;
 var _myLikes={};
 var _likeLock={};
+function canDeleteOwner(owner){return isAdmin||owner===currentUser||owner===myProfile.name||owner==="我";}
 
 // Supabase session -> local state
 async function loadSession(user){
@@ -69,6 +71,7 @@ async function loadSession(user){
   myProfileId=user.id;
   var _a=await sb.from('profiles').select('*').eq('id',user.id).single();
   var p=_a.data;
+  isAdmin=!!(p&&p.is_admin);
   if(p){
     myProfile.name=p.username;
     myProfile.role=p.role;
@@ -1351,17 +1354,30 @@ function renderRecruits(filter = 'all') {
         </div>
         <button class="btn" data-recruit-id="${escapeHtml(r.id)}">查看详情</button>
         <button class="mini-btn-link" data-friend-name="${escapeHtml(r.poster)}" title="加好友">👥</button>
+        ${canDeleteOwner(r.poster) ? '<button class="mini-btn reject" data-delete-recruit-id="' + escapeHtml(r.id) + '" title="删除">🗑</button>' : ''}
       </div>
     </article>
   `;
   }).join('');
 }
 document.getElementById('recruitGrid').addEventListener('click', function(e) {
+  var deleteBtn = e.target.closest('[data-delete-recruit-id]');
+  if (deleteBtn) { e.stopPropagation(); deleteRecruit(deleteBtn.dataset.deleteRecruitId); return; }
   var recruitBtn = e.target.closest('[data-recruit-id]');
   if (recruitBtn) { e.stopPropagation(); openRecruitDrawer(recruitBtn.dataset.recruitId); return; }
   var friendBtn = e.target.closest('[data-friend-name]');
   if (friendBtn) { e.stopPropagation(); quickAddFriend(friendBtn.dataset.friendName); }
 });
+
+function deleteRecruit(id) {
+  var idx = recruits.findIndex(function(r){ return r.id === id; });
+  if(idx<0)return;
+  if(!canDeleteOwner(recruits[idx].poster)){showToast('没有权限删除');return;}
+  if(!confirm('确定删除这条招募吗？'))return;
+  recruits.splice(idx,1);
+  renderRecruits();
+  showToast('已删除');
+}
 
 function openRecruitDrawer(id) {
   const r = recruits.find(x => x.id === id);
@@ -1488,7 +1504,7 @@ function renderMatch() {
         </div>
         <button class="btn" data-match-name="${escapeHtml(b.brand)}" data-match-role="品牌方">我想合作</button>
         <button class="mini-btn-link" data-friend-name="${escapeHtml(b.brand)}" title="加好友">👥</button>
-        ${b.brand === myProfile.name ? '<button class="mini-btn reject" data-delete-match-id="' + escapeHtml(b.id) + '" data-delete-match-type="brand" title="删除">🗑</button>' : ''}
+        ${canDeleteOwner(b.brand) ? '<button class="mini-btn reject" data-delete-match-id="' + escapeHtml(b.id) + '" data-delete-match-type="brand" title="删除">🗑</button>' : ''}
       </div>
     </article>
   `).join('');
@@ -1513,7 +1529,7 @@ function renderMatch() {
         </div>
         <button class="btn" data-match-name="${escapeHtml(c.creator)}" data-match-role="达人">联系TA</button>
         <button class="mini-btn-link" data-friend-name="${escapeHtml(c.creator)}" title="加好友">👥</button>
-        ${c.creator === myProfile.name ? '<button class="mini-btn reject" data-delete-match-id="' + escapeHtml(c.id) + '" data-delete-match-type="creator" title="删除">🗑</button>' : ''}
+        ${canDeleteOwner(c.creator) ? '<button class="mini-btn reject" data-delete-match-id="' + escapeHtml(c.id) + '" data-delete-match-type="creator" title="删除">🗑</button>' : ''}
       </div>
     </article>
   `;
@@ -1530,9 +1546,12 @@ document.getElementById('matchColumns').addEventListener('click', function(e) {
 });
 
 function deleteMatch(id, type) {
-  if (!confirm('确定删除这条对接需求吗？')) return;
   var arr = type === 'brand' ? brandSeekingData : creatorSeekingData;
   var idx = arr.findIndex(function(x){ return x.id === id; });
+  if(idx<0)return;
+  var owner=type==='brand'?arr[idx].brand:arr[idx].creator;
+  if(!canDeleteOwner(owner)){showToast('没有权限删除');return;}
+  if (!confirm('确定删除这条对接需求吗？')) return;
   if (idx >= 0) { arr.splice(idx, 1); renderMatch(); showToast('已删除'); }
 }
 
@@ -1575,7 +1594,7 @@ function renderLocalMatch() {
   var catLabels={food:'🍔 餐饮',beauty:'💆 美容',fitness:'🏋 健身',entertainment:'🎬 娱乐',hotel:'🏨 酒店',retail:'🛒 零售',other:'📌 其他'};
   var grid=document.getElementById('localDemandsGrid');
   if(!items.length){grid.innerHTML='<p style="color:rgba(45,45,45,.4);padding:20px;text-align:center;">该筛选条件下暂无本地需求<br><small>试试切换城市或品类，或者发布第一条需求！</small></p>';}
-  else {grid.innerHTML=items.map(function(d,i){var isMine=d.postedBy===currentUser;return '<article class="card" style="--tilt:'+randTilt(i)+';--tape:'+randTape(i)+'"><div class="card-top"><span class="card-status seeking">'+(catLabels[d.category]||d.category)+'</span></div><h3>'+escapeHtml(d.businessName)+'</h3><p style="font-size:14px;color:rgba(45,45,45,.6);">📍 '+escapeHtml(d.city)+(d.district?'·'+escapeHtml(d.district):'')+'</p><p style="font-weight:600;">'+escapeHtml(d.title)+'</p><p class="desc">'+escapeHtml(d.description)+'</p><div class="budget">'+escapeHtml(d.budget)+'</div><p style="font-size:13px;color:rgba(45,45,45,.5);">要求：'+escapeHtml(d.requirements||'无特殊要求')+'</p><div class="card-foot"><button class="btn" onclick="localMatchIntent(\''+d.id+'\')">🤝 我要接</button>'+'<span style="font-size:13px;color:rgba(45,45,45,.4);margin-left:8px;">'+escapeHtml(d.contact)+'</span>'+(isMine?'<button class="mini-btn reject" onclick="event.stopPropagation();deleteLocalDemand(\''+d.id+'\')" title="删除">🗑</button>':'')+'</div></article>';}).join('');}
+  else {grid.innerHTML=items.map(function(d,i){var isMine=canDeleteOwner(d.postedBy||d.poster);return '<article class="card" style="--tilt:'+randTilt(i)+';--tape:'+randTape(i)+'"><div class="card-top"><span class="card-status seeking">'+(catLabels[d.category]||d.category)+'</span></div><h3>'+escapeHtml(d.businessName)+'</h3><p style="font-size:14px;color:rgba(45,45,45,.6);">📍 '+escapeHtml(d.city)+(d.district?'·'+escapeHtml(d.district):'')+'</p><p style="font-weight:600;">'+escapeHtml(d.title)+'</p><p class="desc">'+escapeHtml(d.description)+'</p><div class="budget">'+escapeHtml(d.budget)+'</div><p style="font-size:13px;color:rgba(45,45,45,.5);">要求：'+escapeHtml(d.requirements||'无特殊要求')+'</p><div class="card-foot"><button class="btn" onclick="localMatchIntent(\''+d.id+'\')">🤝 我要接</button>'+'<span style="font-size:13px;color:rgba(45,45,45,.4);margin-left:8px;">'+escapeHtml(d.contact)+'</span>'+(isMine?'<button class="mini-btn reject" onclick="event.stopPropagation();deleteLocalDemand(\''+d.id+'\')" title="删除">🗑</button>':'')+'</div></article>';}).join('');}
 
   // Local creators recommendations
   var creators=allUsers.filter(function(u){return u.role==='creator'&&(!cityFilter||(u.city&&u.city.indexOf(cityFilter)!==-1));}).slice(0,6);
@@ -1603,8 +1622,10 @@ document.getElementById('localFilters').addEventListener('click',function(e){
 });
 
 function deleteLocalDemand(did) {
-  if (!confirm('确定删除这条本地需求吗？')) return;
   var idx = localDemands.findIndex(function(x) { return x.id === did; });
+  if(idx<0)return;
+  if(!canDeleteOwner(localDemands[idx].postedBy||localDemands[idx].poster)){showToast('没有权限删除');return;}
+  if (!confirm('确定删除这条本地需求吗？')) return;
   if (idx >= 0) { localDemands.splice(idx, 1); localStorage.setItem('creatorhub_local_demands', JSON.stringify(localDemands)); renderLocalMatch(); showToast('已删除'); }
 }
 
@@ -1686,7 +1707,7 @@ function renderPosts(filter = 'all') {
           <span>${escapeHtml(p.maker)}</span>
         </div>
         <span style="font-size:14px;color:rgba(45,45,45,.5);">${escapeHtml(p.time)}</span>
-        ${p.maker === '我' || p.maker === myProfile.name ? '<button class="mini-btn reject" data-delete-post-id="' + escapeHtml(p.id) + '" title="删除">🗑</button>' : ''}
+        ${canDeleteOwner(p.maker) ? '<button class="mini-btn reject" data-delete-post-id="' + escapeHtml(p.id) + '" title="删除">🗑</button>' : ''}
       </div>
     </article>
   `).join('');
@@ -2218,7 +2239,7 @@ function openPostDetail(postId) {
   var p = posts.find(function(x){ return x.id === postId; });
   if (!p) return;
   var cmts = postComments[p.id] || [];
-  var isMyPost = p.maker === '我' || p.maker === myProfile.name;
+  var isMyPost = canDeleteOwner(p.maker);
   var pHtml = p.platform && p.platform !== 'all' ? platformTagHtml(p.platform) : '';
   document.getElementById('overlay').classList.add('show');
   document.getElementById('overlay').onclick = closePostDetail;
@@ -2270,9 +2291,11 @@ function addComment() {
 
 
 function deletePost(postId) {
+  var idx = posts.findIndex(function(p){ return p.id === postId; });
+  if(idx<0)return;
+  if(!canDeleteOwner(posts[idx].maker)){showToast('没有权限删除');return;}
   if (!confirm('确定要删除这条帖子吗？')) return;
   track('post_delete',{post_id:postId});
-  var idx = posts.findIndex(function(p){ return p.id === postId; });
   if (idx >= 0) {
     var p = posts[idx];
     posts.splice(idx, 1);
