@@ -880,10 +880,10 @@ input, textarea, select { font: inherit; }
    ======================================== */
 .toast {
   position: fixed;
-  bottom: 30px;
+  top: 24px;
   left: 50%;
-  transform: translateX(-50%) translateY(120px);
-  z-index: 100;
+  transform: translateX(-50%) translateY(-120px);
+  z-index: 1200;
   padding: 12px 22px;
   background: var(--ink);
   color: #fff;
@@ -894,6 +894,20 @@ input, textarea, select { font: inherit; }
   pointer-events: none;
 }
 .toast.show { transform: translateX(-50%) translateY(0); }
+.toast.success { background: var(--sage); color: #fff; }
+.toast.error { background: var(--red); color: #fff; }
+.toast.warn { background: var(--orange); color: var(--ink); }
+
+.skeleton {
+  background: linear-gradient(90deg, var(--muted) 25%, var(--gray) 50%, var(--muted) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  min-height: 120px;
+  border: 3px solid rgba(45,45,45,.12);
+  border-radius: var(--wobbly-md);
+}
+@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+.empty-state { text-align:center;padding:30px;color:rgba(45,45,45,.45); }
 
 /* ========================================
    FRIENDS
@@ -2341,17 +2355,17 @@ function pollUpdates(){
     noteCreated(r.data);
     if(r.data&&r.data.length>0){r.data.forEach(function(p){if(!posts.find(function(x){return x.id===p.id;})){posts.push(normalizePost(p));}});renderPosts("all");}
     saveCursor();
-  });
+  }).catch(showLoadError);
   sb.from("notifications").select("*").eq("username",currentUser).gt("created_at",cursor).then(function(r){
     noteCreated(r.data);
     if(r.data&&r.data.length>0){r.data.forEach(function(n){saveNotify(emoFor(n.type),n.from_user+' → '+n.content.slice(0,30),n.content,actFor(n.type));});updateNotifyBadge();}
     saveCursor();
-  });
+  }).catch(showLoadError);
   sb.from("chat_messages").select("*").eq("recipient",currentUser).eq("is_read",false).gt("created_at",cursor).then(function(r){
     noteCreated(r.data);
     if(r.data&&r.data.length>0){renderChatMessages();updateChatBadge();renderChatContacts();}
     saveCursor();
-  });
+  }).catch(showLoadError);
 }
 
 // ========================================
@@ -2361,33 +2375,42 @@ function pollUpdates(){
 // ========================================
 async function loadAllData(){
   if(!currentUser)return;
-  // Load posts
-  var rp=await sb.from("posts").select("*").order("created_at",{ascending:false}).limit(100);
-  if(rp.data&&rp.data.length>0){rp.data.forEach(function(p){if(!posts.find(function(x){return x.id===p.id;})){posts.push(normalizePost(p));}});renderPosts("all");}
-  // Load recruits
-  var rr=await sb.from("recruits").select("*").order("created_at",{ascending:false}).limit(50);
-  if(rr.data&&rr.data.length>0){rr.data.forEach(function(r){if(!recruits.find(function(x){return x.id===r.id;}))recruits.unshift(r);});}
-  // Load local demands
-  var rl=await sb.from("local_demands").select("*").order("created_at",{ascending:false}).limit(50);
-  if(rl.data&&rl.data.length>0){localStorage.setItem("creatorhub_local_demands",JSON.stringify(rl.data));}
-  // Load friends
-  var rf=await sb.from("friends").select("friend_name").eq("username",currentUser);
-  if(rf.data&&rf.data.length>0){myFriends=rf.data.map(function(f){return f.friend_name;});localStorage.setItem("creatorhub_friends_"+currentUser,JSON.stringify(myFriends));}
-  // Load chat history
-  var rc=await sb.from("chat_messages").select("*").or("sender.eq."+currentUser+",recipient.eq."+currentUser).order("created_at",{ascending:true}).limit(200);
-  if(rc.data&&rc.data.length>0){
-    rc.data.forEach(function(m){
-      var other=m.sender===currentUser?m.recipient:m.sender;
-      var cid="c_"+[currentUser,other].sort().join("_");
-      var existing=contacts.find(function(c){return c.id===cid;});
-      if(!existing){contacts.push({id:cid,name:other,avatar:other.slice(0,1),avatarBg:"",platform:"all",unread:0,lastMsg:"",messages:[]});existing=contacts[contacts.length-1];}
-      existing.messages.push({from:m.sender===currentUser?"me":"them",text:m.content,time:new Date(m.created_at).toLocaleTimeString("zh-CN",{hour:"2-digit",minute:"2-digit"})});
-      existing.lastMsg=m.content.slice(0,30);
-      if(m.sender!==currentUser&&!m.is_read)existing.unread=(existing.unread||0)+1;
-    });
+  showLoadingSkeletons();
+  try{
+    // Load posts
+    var rp=await sb.from("posts").select("*").order("created_at",{ascending:false}).limit(100);
+    if(rp.data&&rp.data.length>0){rp.data.forEach(function(p){if(!posts.find(function(x){return x.id===p.id;})){posts.push(normalizePost(p));}});}
+    // Load recruits
+    var rr=await sb.from("recruits").select("*").order("created_at",{ascending:false}).limit(50);
+    if(rr.data&&rr.data.length>0){rr.data.forEach(function(r){if(!recruits.find(function(x){return x.id===r.id;}))recruits.unshift(r);});}
+    // Load local demands
+    var rl=await sb.from("local_demands").select("*").order("created_at",{ascending:false}).limit(50);
+    if(rl.data&&rl.data.length>0){localStorage.setItem("creatorhub_local_demands",JSON.stringify(rl.data));}
+    // Load friends
+    var rf=await sb.from("friends").select("friend_name").eq("username",currentUser);
+    if(rf.data&&rf.data.length>0){myFriends=rf.data.map(function(f){return f.friend_name;});localStorage.setItem("creatorhub_friends_"+currentUser,JSON.stringify(myFriends));}
+    // Load chat history
+    var rc=await sb.from("chat_messages").select("*").or("sender.eq."+currentUser+",recipient.eq."+currentUser).order("created_at",{ascending:true}).limit(200);
+    if(rc.data&&rc.data.length>0){
+      rc.data.forEach(function(m){
+        var other=m.sender===currentUser?m.recipient:m.sender;
+        var cid="c_"+[currentUser,other].sort().join("_");
+        var existing=contacts.find(function(c){return c.id===cid;});
+        if(!existing){contacts.push({id:cid,name:other,avatar:other.slice(0,1),avatarBg:"",platform:"all",unread:0,lastMsg:"",messages:[]});existing=contacts[contacts.length-1];}
+        existing.messages.push({from:m.sender===currentUser?"me":"them",text:m.content,time:new Date(m.created_at).toLocaleTimeString("zh-CN",{hour:"2-digit",minute:"2-digit"})});
+        existing.lastMsg=m.content.slice(0,30);
+        if(m.sender!==currentUser&&!m.is_read)existing.unread=(existing.unread||0)+1;
+      });
+    }
+  }catch(e){
+    showLoadError(e);
+  }finally{
+    renderPosts("all");
+    renderRecruits();
+    renderFriendsList();
     renderChatContacts();
+    setupRealtime();
   }
-  setupRealtime();
 }
 // AVATAR SYSTEM
 // ========================================
@@ -2886,7 +2909,11 @@ function fmtTime(t){if(!t)return '刚刚';var d=new Date(t);return d.toLocaleDat
 function randTilt(i){return [-0.5,0.3,-0.3,0.4,-0.4,0.2][i%6]+"deg";}
 function randTape(i){return [-1.5,1,-1,1.5,-0.5,2][i%6]+"deg";}
 function platformTagHtml(p){var m={xhs:["小红书","xhs"],douyin:["抖音","douyin"],kuaishou:["快手","kuaishou"],bilibili:["B站","bilibili"],wechat:["视频号","wechat"],weibo:["微博","weibo"],youtube:["YouTube","youtube"],tiktok:["TikTok","tiktok"],instagram:["Instagram","instagram"],taobao:["淘宝","taobao"],pdd:["拼多多","pdd"],zhihu:["知乎","zhihu"],dewu:["得物","dewu"],xigua:["西瓜视频","xigua"],all:["全平台","all"]};var x=m[p]||["全平台","all"];return '<span class="platform-tag '+x[1]+'">'+x[0]+"</span>";}
-function showToast(m){var t=document.getElementById("toast");t.textContent=m;t.classList.add("show");clearTimeout(t._t);t._t=setTimeout(function(){t.classList.remove("show");},2000);}
+function skeletonCards(n){var out='';for(var i=0;i<n;i++)out+='<div class="skeleton"></div>';return out;}
+function showLoadingSkeletons(){var p=document.getElementById('postGrid');if(p&&!p.children.length)p.innerHTML=skeletonCards(3);var r=document.getElementById('recruitGrid');if(r&&!r.children.length)r.innerHTML=skeletonCards(3);var f=document.getElementById('friendsList');if(f&&!f.children.length)f.innerHTML=skeletonCards(3);}
+var _lastLoadError=0;
+function showLoadError(e){console.error(e);var now=Date.now();if(now-_lastLoadError>5000){_lastLoadError=now;showToast('加载失败，请刷新重试','error');}}
+function showToast(m,type){var t=document.getElementById("toast");var kind=type||(/失败|错误|未找到/.test(m)?"error":/请|注意/.test(m)?"warn":"success");var icon=kind==="error"?"❌":kind==="warn"?"⚠️":"✅";t.className="toast "+kind;t.textContent=icon+" "+m;t.classList.add("show");clearTimeout(t._t);t._t=setTimeout(function(){t.classList.remove("show");},2400);}
 
 // ========================================
 function initHomepage() {
@@ -3350,6 +3377,7 @@ function renderRecruits(filter = 'all') {
     if (filter === 'all-plat') return platforms.length > 1;
     return platforms.includes(filter);
   });
+  if(!items.length){document.getElementById('recruitGrid').innerHTML='<p class="empty-state">还没有招募，发布第一条招募吧</p>';return;}
   document.getElementById('recruitGrid').innerHTML = items.map((r, i) => {
     var platforms = safeArray(r.platforms);
     var tags = safeArray(r.tags);
@@ -3664,6 +3692,7 @@ function createPost() {
 
 function renderPosts(filter = 'all') {
   let items = filter === 'all' ? posts : posts.filter(p => p.category === filter);
+  if(!items.length){document.getElementById('postGrid').innerHTML='<p class="empty-state">还没有帖子，发第一篇吧</p>';return;}
   document.getElementById('postGrid').innerHTML = items.map((p, i) => `
     <article class="post-card" style="--tilt:${randTilt(i)};--tape:${randTape(i)};cursor:pointer;" data-post-id="${escapeHtml(p.id)}">
       <span class="post-category ${escapeHtml(p.category)}">${escapeHtml(p.categoryLabel)}</span>
@@ -3831,7 +3860,7 @@ function renderFriendsList() {
     if (search) friends = friends.filter(f => f.name.toLowerCase().includes(search) || f.tags.some(t => t.toLowerCase().includes(search)));
     document.getElementById('myFriendsCount').textContent = `(${friends.length})`;
     container.innerHTML = friends.length === 0
-      ? '<p style="text-align:center;padding:30px;color:rgba(45,45,45,.45);">还没有好友，去「发现新朋友」里找找看吧</p>'
+      ? '<p class="empty-state">还没有好友？<button class="mini-btn add" onclick="switchFriendTab(\'discover\')" style="margin-left:8px;">去发现新朋友吧</button></p>'
       : friends.map(f => `
         <div class="friend-item" data-uid="${escapeHtml(f.id)}">
           <span class="avatar ${f.online ? 'online' : ''}" style="${avatarStyle(f.name)}">${escapeHtml(f.avatar)}</span>
