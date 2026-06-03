@@ -1467,6 +1467,7 @@ input, textarea, select { font: inherit; }
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 </head>
 <body>
+<noscript><div style="text-align:center;padding:60px 20px;font-size:20px;background:#fff;font-family:sans-serif;"><h2>JavaScript 被禁用了</h2><p>CreatorHub 需要 JavaScript 才能运行</p></div></noscript>
 <!-- ========================================
      LOGIN / REGISTER OVERLAY
      ======================================== -->
@@ -1493,7 +1494,7 @@ input, textarea, select { font: inherit; }
     <!-- Login form -->
     <div id="loginForm">
       <h3>🔑 登录</h3>
-      <div class="form-row"><label>邮箱</label><input type="text" id="loginUser" placeholder="输入注册邮箱" /></div>
+      <div class="form-row"><label for="loginUser">邮箱</label><input type="text" id="loginUser" placeholder="输入注册邮箱" /></div>
       <div class="form-row"><label>密码</label><input type="password" id="loginPass" placeholder="输入密码" /></div>
       <button class="btn big" onclick="doLogin()" style="width:100%;">登录</button>
       <p style="text-align:center;margin-top:14px;font-size:15px;">
@@ -2150,6 +2151,10 @@ var AB={
 const SB_URL='https://bbjdrjbqkhtcqvduqmpj.supabase.co';
 const SB_KEY='sb_publishable_KwoaGM3yrgCWUolbwfCHVg_Qk41OFsv';
 const sb=supabase.createClient(SB_URL,SB_KEY);
+// Supabase global error handler
+(function(){var _from=sb.from.bind(sb);sb.from=function(t){var qb=_from(t);var _origThen=qb.then;qb.then=function(f,r){return _origThen.call(qb,f,function(e){console.error("["+t+"]",(e&&e.message)||e);if(r)return r(e);});};return qb;};})();
+// Global error catch for all Supabase queries();
+
 
 // ========================================
 // AUTH
@@ -2281,6 +2286,8 @@ async function saveXP(amount,reason){
 }
 
 function setupRealtime(){
+  if(window._realtimeChannels){window._realtimeChannels.forEach(function(ch){sb.removeChannel(ch);});}
+  window._realtimeChannels=[];
   if(window._pollTimer)clearInterval(window._pollTimer);
   if(!currentUser)return;
   sb.channel("chat-"+currentUser)
@@ -2291,7 +2298,7 @@ function setupRealtime(){
     .on("postgres_changes",{event:"INSERT",schema:"public",table:"world_messages"},
       function(p){renderWorldChat();})
     .subscribe();
-  sb.channel("comments-live").on("postgres_changes",{event:"DELETE",schema:"public",table:"comments"},function(p){if(p.old){var pid=p.old.post_id;if(postComments[pid]){var ci=postComments[pid].findIndex(function(x){return x.author===p.old.author&&x.text===p.old.content;});if(ci>=0){postComments[pid].splice(ci,1);var pp=posts.find(function(x){return x.id===pid;});if(pp)pp.comments=postComments[pid].length;renderPosts();}}}}).on("postgres_changes",{event:"INSERT",schema:"public",table:"comments"},function(p){if(p.new){var pid=p.new.post_id;if(!postComments[pid])postComments[pid]=[];if(!postComments[pid].find(function(x){return x.author===p.new.author&&x.text===p.new.content;})){postComments[pid].push({author:p.new.author,text:p.new.content,time:fmtTime(p.new.created_at)});var pp=posts.find(function(x){return x.id===pid;});if(pp)pp.comments=postComments[pid].length;renderPosts();}}}).subscribe();
+  sb.channel("comments-live").on("postgres_changes",{event:"DELETE",schema:"public",table:"comments"},function(p){if(p.old){var pid=p.old.post_id;if(postComments[pid]){var ci=postComments[pid].findIndex(function(x){return x.author===p.old.author&&x.text===p.old.content;});if(ci>=0){postComments[pid].splice(ci,1);var pp=posts.find(function(x){return x.id===pid;});if(pp)pp.comments=postComments[pid].length;renderPosts();}}}}).on("postgres_changes",{event:"INSERT",schema:"public",table:"comments"},function(p){if(p.new){var pid=p.new.post_id;if(!postComments[pid])postComments[pid]=[];if(!postComments[pid].find(function(x){return x.author===p.new.author&&x.text===p.new.content;})){postComments[pid].push({author:p.new.author,text:p.new.content,time:fmtTime(p.new.created_at)});var pp=posts.find(function(x){return x.id===pid;});if(pp)pp.comments=postComments[pid].length;renderPosts();}}}).subscribe();window._realtimeChannels.push(sb.channel("comments-live"));
   sb.channel("notif-"+currentUser)
     .on("postgres_changes",{event:"INSERT",schema:"public",table:"notifications",filter:"username=eq."+currentUser},
       function(p){if(p.new){saveNotify(emoFor(p.new.type),p.new.from_user+' → '+p.new.content.slice(0,30),p.new.content,actFor(p.new.type));}updateNotifyBadge();})
@@ -2304,7 +2311,8 @@ function setupRealtime(){
 			function(p){if(p.new){var ep=posts.find(function(x){return x.id===p.new.id;});if(ep){ep.likes=p.new.likes||0;ep.comments=p.new.comment_count||0;renderPosts();}}})
 		.on("postgres_changes",{event:"DELETE",schema:"public",table:"posts"},function(p){if(p.old){var idx=posts.findIndex(function(x){return x.id===p.old.id;});if(idx>=0){posts.splice(idx,1);renderPosts();}}}).subscribe();
   console.log("Realtime channels subscribed for "+currentUser);
-  window._pollTimer=setInterval(pollUpdates,2000);
+  window._pollTimer=setInterval(pollUpdates,10000);
+  document.addEventListener('visibilitychange',function(){if(!document.hidden){pollUpdates();if(window._pollTimer)clearInterval(window._pollTimer);window._pollTimer=setInterval(pollUpdates,10000);}else{if(window._pollTimer)clearInterval(window._pollTimer);window._pollTimer=setInterval(pollUpdates,30000);}});
 }
 function pollUpdates(){
   if(!currentUser||document.hidden)return;
@@ -2320,7 +2328,7 @@ function pollUpdates(){
   });
   sb.from("comments").select("*").gt("created_at",new Date(parseInt(since)).toISOString()).then(function(r){if(r.data&&r.data.length>0){r.data.forEach(function(c){if(!postComments[c.post_id])postComments[c.post_id]=[];if(!postComments[c.post_id].find(function(x){return x.author===c.author&&x.text===c.content;})){postComments[c.post_id].push({author:c.author,text:c.content,time:fmtTime(c.created_at)});var _pp=posts.find(function(x){return x.id===c.post_id;});if(_pp)_pp.comments=postComments[c.post_id].length;}});if(currentPostId&&postComments[currentPostId]){var _ov=document.getElementById("postFullview");if(_ov){var _ci=_ov.querySelector(".post-full-comments h3");if(_ci)_ci.textContent="💬 评论 ("+postComments[currentPostId].length+")";}}};renderPosts();});
   var _pids=posts.map(function(x){return x.id;});if(_pids.length>0){sb.from("posts").select("id,likes,comment_count").in("id",_pids).then(function(r){if(r.data&&r.data.length>0){r.data.forEach(function(sp){var lp=posts.find(function(x){return x.id===sp.id;});if(lp){if(lp.likes!==sp.likes)lp.likes=sp.likes||0;if(lp.comments!==sp.comment_count)lp.comments=sp.comment_count||0;}});renderPosts();}});}
-  sb.from("recruits").select("*").gt("created_at",new Date(parseInt(since)).toISOString()).then(function(r){if(r.data&&r.data.length>0){r.data.forEach(function(rr){if(!recruits.find(function(x){return x.id===rr.id;})){recruits.unshift(rr);}});renderRecruits();}});sb.from("match_demands").select("*").gt("created_at",new Date(parseInt(since)).toISOString()).then(function(r){if(r.data&&r.data.length>0){r.data.forEach(function(md){var arr=md.role==="brand"?brandSeekingData:creatorSeekingData;if(!arr.find(function(x){return x.id===md.id;})){var nmd={id:md.id,title:md.title||md.description.slice(0,30),budget:md.budget||"面议",desc:md.description||"",platforms:typeof md.platforms==="string"?JSON.parse(md.platforms||"[]"):(md.platforms||[]),tags:typeof md.tags==="string"?JSON.parse(md.tags||"[]"):(md.tags||[]),detail:md.description||"",avatar:md.poster.slice(0,1),avatarBg:""};if(md.role==="brand"){nmd.brand=md.poster;}else{nmd.creator=md.poster;}arr.unshift(nmd);}});renderMatch();}});sb.from("local_demands").select("*").gt("created_at",new Date(parseInt(since)).toISOString()).then(function(r){if(r.data&&r.data.length>0){r.data.forEach(function(ld){if(!localDemands.find(function(x){return x.id===ld.id;})){localDemands.unshift(ld);}});renderLocalMatch();}});updateLiveStats();sessionStorage.setItem("_poll_since",Date.now()-5000);
+  sb.from("recruits").select("*").gt("created_at",new Date(parseInt(since)).toISOString()).then(function(r){if(r.data&&r.data.length>0){r.data.forEach(function(rr){if(!recruits.find(function(x){return x.id===rr.id;})){recruits.unshift(rr);}});renderRecruits();}});sb.from("match_demands").select("*").gt("created_at",new Date(parseInt(since)).toISOString()).then(function(r){if(r.data&&r.data.length>0){r.data.forEach(function(md){var arr=md.role==="brand"?brandSeekingData:creatorSeekingData;if(!arr.find(function(x){return x.id===md.id;})){var nmd={id:md.id,title:md.title||md.description.slice(0,30),budget:md.budget||"面议",desc:md.description||"",platforms:typeof md.platforms==="string"?JSON.parse(md.platforms||"[]"):(md.platforms||[]),tags:typeof md.tags==="string"?JSON.parse(md.tags||"[]"):(md.tags||[]),detail:md.description||"",avatar:md.poster.slice(0,1),avatarBg:""};if(md.role==="brand"){nmd.brand=md.poster;}else{nmd.creator=md.poster;}arr.unshift(nmd);}});renderMatch();}});sb.from("local_demands").select("*").gt("created_at",new Date(parseInt(since)).toISOString()).then(function(r){if(r.data&&r.data.length>0){r.data.forEach(function(ld){if(!localDemands.find(function(x){return x.id===ld.id;})){localDemands.unshift(ld);}});renderLocalMatch();}});updateLiveStats();if(posts.length>200)posts.length=200;if(recruits.length>100)recruits.length=100;if(contacts.length>50)contacts.length=50;if(brandSeekingData.length>100)brandSeekingData.length=100;if(creatorSeekingData.length>100)creatorSeekingData.length=100;var _cmk=Object.keys(postComments);if(_cmk.length>50){_cmk.sort();for(var _i=0;_i<_cmk.length-50;_i++)delete postComments[_cmk[_i]];}if(worldChat&&worldChat.length>100)worldChat.splice(0,worldChat.length-100);if(worldMessages&&worldMessages.length>100)worldMessages.splice(0,worldMessages.length-100);sessionStorage.setItem("_poll_since",Date.now()-5000);
 }
 
 // ========================================
@@ -2807,7 +2815,7 @@ function renderFeed() {
   brandSeekingData.concat(creatorSeekingData).slice(0,2).forEach(function(m){ var who=m.brand||m.creator||""; items.push({type:"match",typeLabel:"对接",cls:"match",title:m.title||m.desc||"",meta:who+" · "+(m.budget||"")}); });
   if(items.length===0)items.push({type:"chat",typeLabel:"动态",cls:"chat",title:"欢迎来到 CreatorHub！",meta:"开始探索创作者生态"});
   items=items.slice(0,8);
-    document.getElementById('feedGrid').innerHTML = items.map((item, i) => `
+    dom.feedGrid.innerHTML = items.map((item, i) => `
     <article class="feed-card" style="--tilt:${randTilt(i)};cursor:pointer;" onclick="feedCardClick('${item.type}')">
       <span class="feed-type ${item.cls}">${item.typeLabel}</span>
       <h3>${escapeHtml(item.title)}</h3>
@@ -2831,7 +2839,7 @@ var worldChat = [
 ];
 
 function renderChatContacts() {
-  const list = document.getElementById('chatContactList');
+  const list = dom.chatContactList;
   var isWorldActive = activeContact && activeContact.id === 'world';
   list.innerHTML = `
     <div class="chat-contact world-channel${isWorldActive ? ' active' : ''}" onclick="selectWorldChat()">
@@ -2865,7 +2873,7 @@ function selectWorldChat() {
 }
 
 function renderWorldChat() {
-  var container = document.getElementById('chatMessages');
+  var container = dom.chatMessages;
   container.innerHTML = worldChat.map(function(m){
     var isMe = m.from === myProfile.name;
     var avatarLetter = m.from === '系统' ? '🤖' : m.from.slice(0,1);
@@ -2923,7 +2931,7 @@ function selectContact(id) {
 }
 
 function renderChatMessages() {
-  const container = document.getElementById('chatMessages');
+  const container = dom.chatMessages;
   if (!activeContact) {
     container.innerHTML = '<p style="color:rgba(45,45,45,.4);text-align:center;margin-top:60px;">👈 左边选一个人开始聊天</p>';
     return;
@@ -2978,7 +2986,7 @@ function saveNotify(emoji, title, body, action) {
 function updateNotifyBadge() {
   var list = JSON.parse(localStorage.getItem('creatorhub_notify_list') || '[]');
   var unread = list.filter(function(n) { return !n.read; }).length;
-  var badge = document.getElementById('notifyBadge');
+  var badge = dom.notifyBadge;
   if (badge) { badge.textContent = unread > 99 ? '99+' : unread; badge.style.display = unread > 0 ? '' : 'none'; }
 }
 function toggleNotifyDropdown(e) {
@@ -2989,7 +2997,7 @@ function toggleNotifyDropdown(e) {
 document.addEventListener('click', function() { var dd = document.getElementById('notifyDropdown'); if (dd) dd.style.display = 'none'; });
 function renderNotifications() {
   var list = JSON.parse(localStorage.getItem('creatorhub_notify_list') || '[]');
-  var container = document.getElementById('notifyList');
+  var container = dom.notifyList;
   if (!list.length) { container.innerHTML = '<p style="color:rgba(45,45,45,.4);text-align:center;padding:20px;">暂无消息</p>'; return; }
   container.innerHTML = list.map(function(n) {
     var t = new Date(n.time); var timeStr = t.getMonth()+1+'/'+t.getDate()+' '+String(t.getHours()).padStart(2,'0')+':'+String(t.getMinutes()).padStart(2,'0');
@@ -3109,7 +3117,7 @@ function renderRecruits(filter = 'all') {
     if (filter === 'all-plat') return r.platforms.length > 1;
     return r.platforms.includes(filter);
   });
-  document.getElementById('recruitGrid').innerHTML = items.map((r, i) => `
+  dom.recruitGrid.innerHTML = items.map((r, i) => `
     <article class="card" style="--tilt:${randTilt(i)};--tape:${randTape(i)}">
       <div class="card-top">
         <span class="card-status ${r.statusClass}">${r.status}</span>
@@ -3232,15 +3240,15 @@ var matchFilter = 'all';
 function renderMatch() {
   var showBrand = matchFilter === 'all' || matchFilter === 'brand';
   var showCreator = matchFilter === 'all' || matchFilter === 'creator';
-  document.getElementById('brandCol').style.display = showBrand ? '' : 'none';
-  document.getElementById('creatorCol').style.display = showCreator ? '' : 'none';
+  dom.brandCol.style.display = showBrand ? '' : 'none';
+  dom.creatorCol.style.display = showCreator ? '' : 'none';
   if (showBrand && showCreator) {
     document.getElementById('matchColumns').style.gridTemplateColumns = '1fr 1fr';
   } else {
     document.getElementById('matchColumns').style.gridTemplateColumns = '1fr';
   }
 
-  document.getElementById('brandSeeking').innerHTML = brandSeekingData.map((b, i) => `
+  dom.brandSeeking.innerHTML = brandSeekingData.map((b, i) => `
     <article class="card" style="--tilt:${randTilt(i)};--tape:${randTape(i)}">
       <div class="card-top">
         <span class="card-status seeking">品牌方</span>
@@ -3262,7 +3270,7 @@ function renderMatch() {
     </article>
   `).join('');
 
-  document.getElementById('creatorSeeking').innerHTML = creatorSeekingData.map((c, i) => `
+  dom.creatorSeeking.innerHTML = creatorSeekingData.map((c, i) => `
     <article class="card" style="--tilt:${randTilt(i)};--tape:${randTape(i)}">
       <div class="card-top">
         <span class="card-status seeking">达人</span>
@@ -3330,7 +3338,7 @@ function renderLocalMatch() {
   if(localFilter!=='all')items=items.filter(function(d){return d.category===localFilter;});
   if(cityFilter)items=items.filter(function(d){return d.city.indexOf(cityFilter)!==-1;});
   var catLabels={food:'🍔 餐饮',beauty:'💆 美容',fitness:'🏋 健身',entertainment:'🎬 娱乐',hotel:'🏨 酒店',retail:'🛒 零售',other:'📌 其他'};
-  var grid=document.getElementById('localDemandsGrid');
+  var grid=dom.localDemandsGrid;
   if(!items.length){grid.innerHTML='<p style="color:rgba(45,45,45,.4);padding:20px;text-align:center;">该筛选条件下暂无本地需求<br><small>试试切换城市或品类，或者发布第一条需求！</small></p>';}
   else {grid.innerHTML=items.map(function(d,i){var isMine=d.postedBy===currentUser;return '<article class="card" style="--tilt:'+randTilt(i)+';--tape:'+randTape(i)+'"><div class="card-top"><span class="card-status seeking">'+(catLabels[d.category]||d.category)+'</span></div><h3>'+escapeHtml(d.businessName)+'</h3><p style="font-size:14px;color:rgba(45,45,45,.6);">📍 '+escapeHtml(d.city)+(d.district?'·'+escapeHtml(d.district):'')+'</p><p style="font-weight:600;">'+escapeHtml(d.title)+'</p><p class="desc">'+escapeHtml(d.description)+'</p><div class="budget">'+escapeHtml(d.budget)+'</div><p style="font-size:13px;color:rgba(45,45,45,.5);">要求：'+escapeHtml(d.requirements||'无特殊要求')+'</p><div class="card-foot"><button class="btn" onclick="localMatchIntent(\''+d.id+'\')">🤝 我要接</button>'+'<span style="font-size:13px;color:rgba(45,45,45,.4);margin-left:8px;">'+escapeHtml(d.contact)+'</span>'+(isMine?'<button class="mini-btn reject" onclick="event.stopPropagation();deleteLocalDemand(\''+d.id+'\')" title="删除">🗑</button>':'')+'</div></article>';}).join('');}
 
@@ -3403,9 +3411,9 @@ function createPost() {
   renderPosts();
 }
 
-function renderPosts(filter = 'all') {
+function _renderPostsCore(filter = 'all') {
   let items = filter === 'all' ? posts : posts.filter(p => p.category === filter);
-  document.getElementById('postGrid').innerHTML = items.map((p, i) => `
+  dom.postGrid.innerHTML = items.map((p, i) => `
     <article class="post-card" style="--tilt:${randTilt(i)};--tape:${randTape(i)};cursor:pointer;" onclick="openPostDetail('${p.id}')">
       <span class="post-category ${p.category}">${p.categoryLabel}</span>
       <h3>${escapeHtml(p.title)}</h3>
@@ -3425,6 +3433,12 @@ function renderPosts(filter = 'all') {
       </div>
     </article>
   `).join('');
+}
+
+var _renderTimer=null;
+function renderPosts(filter) {
+  if(_renderTimer){clearTimeout(_renderTimer);}
+  _renderTimer=setTimeout(function(){_renderTimer=null;_renderPostsCore(filter);},16);
 }
 
 // Post filters
@@ -3519,7 +3533,7 @@ function switchFriendTab(tab) {
 }
 
 function renderFriendsList() {
-  const container = document.getElementById('friendsList');
+  const container = dom.friendsList;
   const tab = currentFriendTab;
   const search = document.getElementById('friendSearchInput').value.trim().toLowerCase();
 
@@ -3595,7 +3609,7 @@ function showFriendProfile(uid) {
 
   const isFriend = myFriends.includes(uid);
   const isRequested = friendRequests.some(r => r.from === uid);
-  const profileDiv = document.getElementById('friendsProfile');
+  const profileDiv = dom.friendsProfile;
 
   profileDiv.innerHTML = `
     <div class="friend-profile-card">
@@ -3675,7 +3689,7 @@ function removeFriend(uid) {
   if (cidx >= 0) contacts.splice(cidx, 1);
   if (activeContact && activeContact.id === 'f_' + uid) {
     activeContact = null;
-    document.getElementById('chatMessages').innerHTML = '<p style="color:rgba(45,45,45,.4);text-align:center;margin-top:60px;">👈 左边选一个人开始聊天</p>';
+    dom.chatMessages.innerHTML = '<p style="color:rgba(45,45,45,.4);text-align:center;margin-top:60px;">👈 左边选一个人开始聊天</p>';
     document.getElementById('chatName').textContent = '选择一个对话';
   }
   updateFriendBadge();
@@ -3776,7 +3790,7 @@ function renderProfile() {
 
   // My posts
   const myPosts = posts.filter(p => p.maker === myProfile.name);
-  document.getElementById('myPostsGrid').innerHTML = myPosts.length === 0
+  dom.myPostsGrid.innerHTML = myPosts.length === 0
     ? '<p style="color:rgba(45,45,45,.4);padding:20px;">还没有发过帖子，去社区写一篇吧 ✍️</p>'
     : myPosts.map((p, i) => `
       <article class="post-card" style="--tilt:${randTilt(i)};--tape:${randTape(i)}" onclick="openPostDetail('${p.id}')">
@@ -3789,7 +3803,7 @@ function renderProfile() {
 
   // Friends mini
   const friends = getFriendData().slice(0, 6);
-  document.getElementById('profileFriendsMini').innerHTML = friends.map(f => `
+  dom.profileFriendsMini.innerHTML = friends.map(f => `
     <div class="profile-friend-chip" onclick="switchTab('friends');setTimeout(()=>showFriendProfile('${f.id}'),200)">
       <span class="avatar" style="background:${f.avatarBg || 'var(--avatar)'}">${f.avatar}</span>
       <span>${escapeHtml(f.name)}</span>
@@ -4027,7 +4041,33 @@ localStorage.setItem('creatorhub_onboarding',JSON.stringify(ob));
 // ========================================
 // INIT
 // ========================================
+
+var dom = {};
+function cacheDOM() {
+  dom.feedGrid = document.getElementById("feedGrid");
+  dom.postGrid = document.getElementById("postGrid");
+  dom.recruitGrid = document.getElementById("recruitGrid");
+  dom.brandCol = document.getElementById("brandCol");
+  dom.creatorCol = document.getElementById("creatorCol");
+  dom.brandSeeking = document.getElementById("brandSeeking");
+  dom.creatorSeeking = document.getElementById("creatorSeeking");
+  dom.chatContactList = document.getElementById("chatContactList");
+  dom.chatMessages = document.getElementById("chatMessages");
+  dom.friendsList = document.getElementById("friendsList");
+  dom.friendsProfile = document.getElementById("friendsProfile");
+  dom.notifyList = document.getElementById("notifyList");
+  dom.notifyBadge = document.getElementById("notifyBadge");
+  dom.toast = document.getElementById("toast");
+  dom.drawer = document.getElementById("drawer");
+  dom.overlay = document.getElementById("overlay");
+  dom.localDemandsGrid = document.getElementById("localDemandsGrid");
+  dom.myPostsGrid = document.getElementById("myPostsGrid");
+  dom.profileFriendsMini = document.getElementById("profileFriendsMini");
+  dom.chatInput = document.getElementById("chatInput");
+  dom.worldInput = document.getElementById("worldInput");
+}
 function init() {
+  cacheDOM();
   initHomepage();
   renderFeed();
   renderChatContacts();
