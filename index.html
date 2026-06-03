@@ -2355,8 +2355,8 @@ function pollUpdates(){
     (d.new_comments||[]).forEach(function(c){if(!postComments[c.post_id])postComments[c.post_id]=[];if(!postComments[c.post_id].find(function(x){return x.author===c.author&&x.text===c.content;})){postComments[c.post_id].push({author:c.author,text:c.content,time:fmtTime(c.created_at)});var _pp=posts.find(function(x){return x.id===c.post_id;});if(_pp)_pp.comments=postComments[c.post_id].length;}});
     if((d.new_comments||[]).length>0){if(currentPostId&&postComments[currentPostId]){var _ov=document.getElementById("postFullview");if(_ov){var _ci=_ov.querySelector(".post-full-comments h3");if(_ci)_ci.textContent="💬 评论 ("+postComments[currentPostId].length+")";}}renderPosts();}
 
-    // 5. Likes sync
-    (d.likes_sync||[]).forEach(function(sp){var lp=posts.find(function(x){return x.id===sp.id;});if(lp){lp.likes=sp.likes||0;lp.comments=sp.comment_count||0;}});
+    // 5. Likes sync — skip posts liked locally in last 5s
+    (d.likes_sync||[]).forEach(function(sp){var lp=posts.find(function(x){return x.id===sp.id;});if(lp){if(!_likeLock[sp.id]||Date.now()-_likeLock[sp.id]>5000){lp.likes=sp.likes||0;}lp.comments=sp.comment_count||0;}});
     if((d.likes_sync||[]).length>0)renderPosts();
 
     // 6. Recruits
@@ -3999,7 +3999,8 @@ function closePostDetail() {
 
 
 function isLiked(postId){var liked=JSON.parse(localStorage.getItem("creatorhub_liked_"+currentUser)||"[]");return liked.indexOf(postId)>=0;}
-function toggleLike(postId){var p=posts.find(function(x){return x.id===postId;});if(!p)return;var liked=JSON.parse(localStorage.getItem("creatorhub_liked_"+currentUser)||"[]");var idx=liked.indexOf(postId);if(idx>=0){liked.splice(idx,1);p.likes=Math.max(0,(p.likes||0)-1);sb.from("posts").update({likes:p.likes}).eq("id",postId).then(function(r){if(r.error)console.error("Unlike failed:",r.error);});track("post_unlike",{post_id:postId});var lb=document.getElementById("likeBtn");if(lb)lb.textContent="👍 点赞 ("+p.likes+")";}else{liked.push(postId);p.likes=(p.likes||0)+1;sb.from("posts").update({likes:p.likes}).eq("id",postId).then(function(r){if(r.error)console.error("Like failed:",r.error);});if(p.maker&&p.maker!==myProfile.name){deliverNotification(p.maker,"❤️ 赞了你的帖子：「"+p.title.slice(0,30)+"」","点赞");}track("post_like",{post_id:postId});addXP(5,"点赞");var lb=document.getElementById("likeBtn");if(lb)lb.textContent="👍 已赞 ("+p.likes+")";}localStorage.setItem("creatorhub_liked_"+currentUser,JSON.stringify(liked));renderPosts();}
+var _likeLock={};
+function toggleLike(postId){var p=posts.find(function(x){return x.id===postId;});if(!p)return;var liked=JSON.parse(localStorage.getItem("creatorhub_liked_"+currentUser)||"[]");var idx=liked.indexOf(postId);if(idx>=0){liked.splice(idx,1);p.likes=Math.max(0,(p.likes||0)-1);_likeLock[postId]=Date.now();sb.from("posts").update({likes:p.likes}).eq("id",postId).then(function(r){if(r.error)console.error("Unlike failed:",r.error);});track("post_unlike",{post_id:postId});var lb=document.getElementById("likeBtn");if(lb)lb.textContent="👍 点赞 ("+p.likes+")";}else{liked.push(postId);p.likes=(p.likes||0)+1;_likeLock[postId]=Date.now();sb.from("posts").update({likes:p.likes}).eq("id",postId).then(function(r){if(r.error)console.error("Like failed:",r.error);});if(p.maker&&p.maker!==myProfile.name){deliverNotification(p.maker,"❤️ 赞了你的帖子：「"+p.title.slice(0,30)+"」","点赞");}track("post_like",{post_id:postId});addXP(5,"点赞");var lb=document.getElementById("likeBtn");if(lb)lb.textContent="👍 已赞 ("+p.likes+")";}localStorage.setItem("creatorhub_liked_"+currentUser,JSON.stringify(liked));renderPosts();}
 function likePost(postId){toggleLike(postId);}
 
 function deleteComment(postId, commentIdx) {
