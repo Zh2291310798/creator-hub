@@ -291,6 +291,8 @@ CREATE POLICY "recruits_delete_own_auth" ON recruits FOR DELETE
   USING (auth.uid() IS NOT NULL);
 CREATE POLICY "local_delete_own_auth" ON local_demands FOR DELETE
   USING (auth.uid() IS NOT NULL);
+CREATE POLICY "fr_delete_own" ON friend_requests FOR DELETE USING (auth.uid() IS NOT NULL);
+CREATE POLICY "fr_insert_own" ON friend_requests FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
 CREATE POLICY "friends_delete_own_auth" ON friends FOR DELETE
   USING (auth.uid() IS NOT NULL);
 
