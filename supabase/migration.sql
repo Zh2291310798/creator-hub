@@ -285,13 +285,13 @@ CREATE POLICY "profile_insert_own" ON profiles FOR INSERT
 
 -- 删除：仅自己的数据
 CREATE POLICY "posts_delete_own_auth" ON posts FOR DELETE
-  USING (auth.uid() IS NOT NULL);
+  USING ((select username from profiles where id = auth.uid()) = author);
 CREATE POLICY "recruits_delete_own_auth" ON recruits FOR DELETE
-  USING (auth.uid() IS NOT NULL);
+  USING ((select username from profiles where id = auth.uid()) = poster);
 CREATE POLICY "local_delete_own_auth" ON local_demands FOR DELETE
-  USING (auth.uid() IS NOT NULL);
+  USING ((select username from profiles where id = auth.uid()) = poster);
 CREATE POLICY "friends_delete_own_auth" ON friends FOR DELETE
-  USING (auth.uid() IS NOT NULL);
+  USING ((select username from profiles where id = auth.uid()) = username);
 
 -- ============================================
 -- 实时（Realtime）— 前端可订阅
