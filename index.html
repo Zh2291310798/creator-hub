@@ -2298,7 +2298,9 @@ function setupRealtime(){
   sb.channel("posts-live")
     .on("postgres_changes",{event:"INSERT",schema:"public",table:"posts"},
       function(p){if(p.new){posts.unshift({id:p.new.id,title:p.new.title,category:p.new.category,categoryLabel:p.new.category_label||"其他",maker:p.new.author,avatar:p.new.author_avatar,time:"刚刚",desc:p.new.content,platform:p.new.platform||"all",likes:p.new.likes||0,comments:p.new.comment_count||0});renderPosts();}})
-    .subscribe();
+    		.on("postgres_changes",{event:"UPDATE",schema:"public",table:"posts"},
+			function(p){if(p.new){var ep=posts.find(function(x){return x.id===p.new.id;});if(ep){ep.likes=p.new.likes||0;ep.comments=p.new.comment_count||0;renderPosts();}}})
+		.subscribe();
   console.log("Realtime channels subscribed for "+currentUser);
   window._pollTimer=setInterval(pollUpdates,2000);
 }
@@ -2315,7 +2317,7 @@ function pollUpdates(){
     if(r.data&&r.data.length>0){renderChatMessages();updateChatBadge();renderChatContacts();}
   });
   sb.from("comments").select("*").gt("created_at",new Date(parseInt(since)).toISOString()).then(function(r){if(r.data&&r.data.length>0){r.data.forEach(function(c){if(!postComments[c.post_id])postComments[c.post_id]=[];if(!postComments[c.post_id].find(function(x){return x.author===c.author&&x.text===c.content;})){postComments[c.post_id].push({author:c.author,text:c.content,time:fmtTime(c.created_at)});var _pp=posts.find(function(x){return x.id===c.post_id;});if(_pp)_pp.comments=postComments[c.post_id].length;}});if(currentPostId&&postComments[currentPostId]){var _ov=document.getElementById("postFullview");if(_ov){var _ci=_ov.querySelector(".post-full-comments h3");if(_ci)_ci.textContent="💬 评论 ("+postComments[currentPostId].length+")";}}};renderPosts();});
-  sb.from("posts").select("id,likes,comment_count").gt("created_at",new Date(parseInt(since)-60000).toISOString()).then(function(r){if(r.data&&r.data.length>0){r.data.forEach(function(sp){var lp=posts.find(function(x){return x.id===sp.id;});if(lp&&lp.likes!==sp.likes){lp.likes=sp.likes||0;}});renderPosts();}});
+  var _pids=posts.map(function(x){return x.id;});if(_pids.length>0){sb.from("posts").select("id,likes,comment_count").in("id",_pids).then(function(r){if(r.data&&r.data.length>0){r.data.forEach(function(sp){var lp=posts.find(function(x){return x.id===sp.id;});if(lp&&lp.likes!==sp.likes){lp.likes=sp.likes||0;}});renderPosts();}});}
   sessionStorage.setItem("_poll_since",Date.now()-5000);
 }
 
