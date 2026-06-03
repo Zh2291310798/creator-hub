@@ -261,25 +261,25 @@ CREATE POLICY "allow_insert_auth" ON tracking_events FOR INSERT WITH CHECK (true
 
 -- 私有数据：仅自己能读写
 CREATE POLICY "chat_read_own" ON chat_messages FOR SELECT
-  USING (auth.uid() IS NOT NULL);
+  USING ((select username from profiles where id = auth.uid()) = sender OR (select username from profiles where id = auth.uid()) = recipient);
 CREATE POLICY "notif_read_own" ON notifications FOR SELECT
-  USING (auth.uid() IS NOT NULL);
+  USING ((select username from profiles where id = auth.uid()) = username);
 CREATE POLICY "notif_update_own" ON notifications FOR UPDATE
-  USING (auth.uid() IS NOT NULL);
+  USING ((select username from profiles where id = auth.uid()) = username);
 CREATE POLICY "friends_read_own" ON friends FOR SELECT
-  USING (auth.uid() IS NOT NULL);
+  USING ((select username from profiles where id = auth.uid()) = username);
 CREATE POLICY "fr_read_own" ON friend_requests FOR SELECT
-  USING (auth.uid() IS NOT NULL);
+  USING ((select username from profiles where id = auth.uid()) = to_user OR (select username from profiles where id = auth.uid()) = from_user);
 CREATE POLICY "xp_read_own" ON xp_records FOR SELECT
-  USING (auth.uid() IS NOT NULL);
+  USING ((select username from profiles where id = auth.uid()) = username);
 CREATE POLICY "ob_read_own" ON onboarding_status FOR SELECT
-  USING (auth.uid() IS NOT NULL);
+  USING ((select username from profiles where id = auth.uid()) = username);
 CREATE POLICY "ob_update_own" ON onboarding_status FOR UPDATE
-  USING (auth.uid() IS NOT NULL);
+  USING ((select username from profiles where id = auth.uid()) = username);
 CREATE POLICY "track_read_own" ON tracking_events FOR SELECT
   USING (true);
 CREATE POLICY "profile_update_own" ON profiles FOR UPDATE
-  USING (auth.uid() = id);
+  USING ((select username from profiles where id = auth.uid()) = username);
 CREATE POLICY "profile_insert_own" ON profiles FOR INSERT
   WITH CHECK (auth.uid() = id);
 
