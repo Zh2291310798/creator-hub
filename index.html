@@ -2360,7 +2360,7 @@ function pollUpdates(){
     if((d.likes_sync||[]).length>0)renderPosts();
 
     // 6. Recruits
-    (d.new_recruits||[]).forEach(function(rr){if(!recruits.find(function(x){return x.id===rr.id;})){var nr={id:rr.id,title:rr.title,poster:rr.poster,avatar:rr.poster_avatar||rr.poster.slice(0,1),avatarBg:"",type:rr.type||"maker",mode:rr.mode||"全职",desc:rr.description||rr.desc||"",detail:rr.detail||rr.description||"",budget:rr.budget||"面议",city:rr.city||"",platforms:typeof rr.platforms==="string"?JSON.parse(rr.platforms||"[]"):(rr.platforms||[]),tags:typeof rr.tags==="string"?JSON.parse(rr.tags||"[]"):(rr.tags||[]),status:rr.status||"招募中",statusClass:rr.status_class||"active-recruit"};recruits.unshift(nr);}});
+    (d.new_recruits||[]).forEach(function(rr){if(!recruits.find(function(x){return x.id===rr.id;})){var nr={id:rr.id,title:rr.title,poster:rr.poster,avatar:rr.poster_avatar||rr.poster.slice(0,1),avatarBg:"",type:rr.type||"maker",mode:rr.mode||"全职",desc:rr.description||rr.desc||"",detail:rr.detail||rr.description||"",budget:rr.budget||"面议",city:rr.city||"",platforms:typeof rr.platforms==="string"?JSON.parse(rr.platforms||"[]"):(rr.platforms||[]),tags:typeof rr.tags==="string"?JSON.parse(rr.tags||"[]"):(rr.tags||[]),status:rr.status||"招募中",statusClass:rr.status_class||"active-recruit",postedBy:rr.poster||""};recruits.unshift(nr);}});
     if((d.new_recruits||[]).length>0)renderRecruits();
 
     // 7. Match demands
@@ -2407,7 +2407,7 @@ async function loadAllData(){
   if(rp.data&&rp.data.length>0){rp.data.forEach(function(p){if(!posts.find(function(x){return x.id===p.id;})){posts.unshift({id:p.id,title:p.title,category:p.category,categoryLabel:p.category_label||'其他',maker:p.author||p.maker,avatar:p.author_avatar||p.avatar,time:(function(t){var d=new Date(t);return d.toLocaleDateString('zh-CN',{month:'numeric',day:'numeric'})+' '+d.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})})(p.created_at),desc:p.content||p.desc,platform:p.platform||'all',likes:p.likes||0,comments:p.comment_count||0,tags:p.tags});}});var _maxId=0;rp.data.forEach(function(p){var _n=parseInt((p.id||'').replace(/[^0-9]/g,''));if(!isNaN(_n)&&_n>_maxId)_maxId=_n;});nextPostId=Math.max(nextPostId,_maxId+1);renderPosts();}
   // Load recruits
   var rr=await sb.from("recruits").select("*").order("created_at",{ascending:false}).limit(50);
-  if(rr.data&&rr.data.length>0){rr.data.forEach(function(r){if(!recruits.find(function(x){return x.id===r.id;})){var nr={id:r.id,title:r.title,poster:r.poster,avatar:r.poster_avatar||r.poster.slice(0,1),avatarBg:"",type:r.type||"maker",mode:r.mode||"全职",desc:r.description||r.desc||"",detail:r.detail||r.description||"",budget:r.budget||"面议",city:r.city||"",platforms:typeof r.platforms==="string"?JSON.parse(r.platforms||"[]"):(r.platforms||[]),tags:typeof r.tags==="string"?JSON.parse(r.tags||"[]"):(r.tags||[]),status:r.status||"招募中",statusClass:r.status_class||"active-recruit"};recruits.unshift(nr);}});}
+  if(rr.data&&rr.data.length>0){rr.data.forEach(function(r){if(!recruits.find(function(x){return x.id===r.id;})){var nr={id:r.id,title:r.title,poster:r.poster,avatar:r.poster_avatar||r.poster.slice(0,1),avatarBg:"",type:r.type||"maker",mode:r.mode||"全职",desc:r.description||r.desc||"",detail:r.detail||r.description||"",budget:r.budget||"面议",city:r.city||"",platforms:typeof r.platforms==="string"?JSON.parse(r.platforms||"[]"):(r.platforms||[]),tags:typeof r.tags==="string"?JSON.parse(r.tags||"[]"):(r.tags||[]),status:r.status||"招募中",statusClass:r.status_class||"active-recruit",postedBy:r.poster||""};recruits.unshift(nr);}});}
   // Load local demands
   var rl=await sb.from("local_demands").select("*").order("created_at",{ascending:false}).limit(50);
   if(rl.data&&rl.data.length>0){localStorage.setItem("creatorhub_local_demands",JSON.stringify(rl.data));}
@@ -3174,7 +3174,7 @@ function renderRecruits(filter = 'all') {
         </div>
         <button class="btn" onclick="event.stopPropagation();openRecruitDrawer('${r.id}')">查看详情</button>
         <button class="mini-btn-link" onclick="event.stopPropagation();quickAddFriend('${jsEscape(r.poster)}')" title="加好友">👥</button>
-        ${r.poster === myProfile.name || isAdmin ? '<button class="mini-btn reject" onclick="event.stopPropagation();deleteRecruit(\'' + r.id + '\')" title="删除">🗑</button>' : ''}
+        ${r.postedBy === myProfile.name || r.poster === myProfile.name || isAdmin ? '<button class="mini-btn reject" onclick="event.stopPropagation();deleteRecruit(\'' + r.id + '\')" title="删除">🗑</button>' : ''}
       </div>
     </article>
   `).join('');
