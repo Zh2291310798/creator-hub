@@ -3174,7 +3174,7 @@ function renderRecruits(filter = 'all') {
         </div>
         <button class="btn" onclick="event.stopPropagation();openRecruitDrawer('${r.id}')">查看详情</button>
         <button class="mini-btn-link" onclick="event.stopPropagation();quickAddFriend('${jsEscape(r.poster)}')" title="加好友">👥</button>
-        ${isAdmin ? '<button class="mini-btn reject" onclick="event.stopPropagation();deleteRecruit(\'' + r.id + '\')" title="删除">🗑</button>' : ''}
+        ${r.poster === myProfile.name || isAdmin ? '<button class="mini-btn reject" onclick="event.stopPropagation();deleteRecruit(\'' + r.id + '\')" title="删除">🗑</button>' : ''}
       </div>
     </article>
   `).join('');
