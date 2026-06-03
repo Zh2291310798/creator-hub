@@ -2169,7 +2169,7 @@ async function loadSession(user){
     myProfile.city=p.city||'';
     myProfile.workStatus=p.work_status||'';
     if(p.avatar_choice)myAvatarChoice=p.avatar_choice;
-    myLevel=p.level||1;myXP=p.xp||0;
+    var myLevel=p.level||1,myXP=p.xp||0;
   }
   var _x=await sb.from('xp_records').select('amount').eq('username',currentUser);
   if(_x.data){myXP=0;_x.data.forEach(function(r){myXP+=r.amount;});myLevel=Math.floor(myXP/100)+1;}
@@ -2183,7 +2183,7 @@ async function loadSession(user){
   var ua2=document.getElementById('topAvatar');
   if(ua2){ua2.textContent=myProfile.avatar;ua2.style.background=avatarGradient(myProfile.name);ua2.style.color='#fff';}
   document.querySelector('.user-mini .avatar').textContent=myProfile.avatar;
-  document.querySelector('.user-mini span:last-child').textContent=myProfile.name+' ⚙';
+  document.querySelector('.user-mini span:nth-child(2)').textContent=myProfile.name+' ⚙';
   document.getElementById('setName').value=myProfile.name;
   document.getElementById('setRole').value=myProfile.role;
   track('user_login',{is_new:false});
@@ -2320,7 +2320,7 @@ function pollUpdates(){
   });
   sb.from("comments").select("*").gt("created_at",new Date(parseInt(since)).toISOString()).then(function(r){if(r.data&&r.data.length>0){r.data.forEach(function(c){if(!postComments[c.post_id])postComments[c.post_id]=[];if(!postComments[c.post_id].find(function(x){return x.author===c.author&&x.text===c.content;})){postComments[c.post_id].push({author:c.author,text:c.content,time:fmtTime(c.created_at)});var _pp=posts.find(function(x){return x.id===c.post_id;});if(_pp)_pp.comments=postComments[c.post_id].length;}});if(currentPostId&&postComments[currentPostId]){var _ov=document.getElementById("postFullview");if(_ov){var _ci=_ov.querySelector(".post-full-comments h3");if(_ci)_ci.textContent="💬 评论 ("+postComments[currentPostId].length+")";}}};renderPosts();});
   var _pids=posts.map(function(x){return x.id;});if(_pids.length>0){sb.from("posts").select("id,likes,comment_count").in("id",_pids).then(function(r){if(r.data&&r.data.length>0){r.data.forEach(function(sp){var lp=posts.find(function(x){return x.id===sp.id;});if(lp){if(lp.likes!==sp.likes)lp.likes=sp.likes||0;if(lp.comments!==sp.comment_count)lp.comments=sp.comment_count||0;}});renderPosts();}});}
-  sb.from("recruits").select("*").gt("created_at",new Date(parseInt(since)).toISOString()).then(function(r){if(r.data&&r.data.length>0){r.data.forEach(function(rr){if(!recruits.find(function(x){return x.id===rr.id;})){recruits.unshift(rr);}});renderRecruits();}});sb.from("match_demands").select("*").gt("created_at",new Date(parseInt(since)).toISOString()).then(function(r){if(r.data&&r.data.length>0){r.data.forEach(function(md){var arr=md.role==="brand"?brandSeekingData:creatorSeekingData;if(!arr.find(function(x){return x.id===md.id;})){var nmd={id:md.id,title:md.title||md.description.slice(0,30),budget:md.budget||"面议",desc:md.description||"",platforms:typeof md.platforms==="string"?JSON.parse(md.platforms||"[]"):(md.platforms||[]),tags:typeof md.tags==="string"?JSON.parse(md.tags||"[]"):(md.tags||[]),detail:md.description||"",avatar:md.poster.slice(0,1),avatarBg:""};if(md.role==="brand"){nmd.brand=md.poster;}else{nmd.creator=md.poster;}arr.unshift(nmd);}});renderMatch();}});sb.from("local_demands").select("*").gt("created_at",new Date(parseInt(since)).toISOString()).then(function(r){if(r.data&&r.data.length>0){r.data.forEach(function(ld){if(!localDemands.find(function(x){return x.id===ld.id;})){localDemands.unshift(ld);}});renderLocalMatch();}});sessionStorage.setItem("_poll_since",Date.now()-5000);
+  sb.from("recruits").select("*").gt("created_at",new Date(parseInt(since)).toISOString()).then(function(r){if(r.data&&r.data.length>0){r.data.forEach(function(rr){if(!recruits.find(function(x){return x.id===rr.id;})){recruits.unshift(rr);}});renderRecruits();}});sb.from("match_demands").select("*").gt("created_at",new Date(parseInt(since)).toISOString()).then(function(r){if(r.data&&r.data.length>0){r.data.forEach(function(md){var arr=md.role==="brand"?brandSeekingData:creatorSeekingData;if(!arr.find(function(x){return x.id===md.id;})){var nmd={id:md.id,title:md.title||md.description.slice(0,30),budget:md.budget||"面议",desc:md.description||"",platforms:typeof md.platforms==="string"?JSON.parse(md.platforms||"[]"):(md.platforms||[]),tags:typeof md.tags==="string"?JSON.parse(md.tags||"[]"):(md.tags||[]),detail:md.description||"",avatar:md.poster.slice(0,1),avatarBg:""};if(md.role==="brand"){nmd.brand=md.poster;}else{nmd.creator=md.poster;}arr.unshift(nmd);}});renderMatch();}});sb.from("local_demands").select("*").gt("created_at",new Date(parseInt(since)).toISOString()).then(function(r){if(r.data&&r.data.length>0){r.data.forEach(function(ld){if(!localDemands.find(function(x){return x.id===ld.id;})){localDemands.unshift(ld);}});renderLocalMatch();}});updateLiveStats();sessionStorage.setItem("_poll_since",Date.now()-5000);
 }
 
 // ========================================
@@ -2361,6 +2361,13 @@ async function loadAllData(){
   var rfr=await sb.from("friend_requests").select("*").eq("to_user",myProfile.name).eq("status","pending");if(rfr.data&&rfr.data.length>0){friendRequests.length=0;rfr.data.forEach(function(fr){friendRequests.push({from:fr.from_user,message:"",time:fmtTime(fr.created_at)});});}
   var rwm=await sb.from("world_messages").select("*").order("created_at",{ascending:false}).limit(50);if(rwm.data&&rwm.data.length>0){rwm.data.reverse().forEach(function(wm){if(!worldMessages.find(function(x){return x.id===wm.id;})){var _wmm={sender:wm.sender,senderAvatar:wm.sender_avatar||wm.sender.slice(0,1),text:wm.content,time:fmtTime(wm.created_at)};worldMessages.push(_wmm);worldChat.push(_wmm);}});}
 sessionStorage.setItem("_poll_since",Date.now()-10000);
+  updateLiveStats();
+    renderRecruits();
+  renderMatch();
+  renderFeed();
+  renderFriendsList();
+  renderProfile();
+  renderLocalMatch();
   updateLiveStats();
   setupRealtime();
 }
@@ -2454,7 +2461,7 @@ function renderAvatarPicker() {
 }
 function saveAvatarChoice() {
   if (currentUser) {
-    sb.from("profiles").update({username:myProfile.name,role:myProfile.role,role_label:myProfile.roleLabel,city:myProfile.city||"",work_status:myProfile.workStatus||"",bio:myProfile.bio||"",avatar_choice:myAvatarChoice}).eq("username",_oldName).then(function(r){if(r.error)console.error("Avatar save failed:",r.error);});
+    sb.from("profiles").update({username:myProfile.name,role:myProfile.role,role_label:myProfile.roleLabel,city:myProfile.city||"",work_status:myProfile.workStatus||"",bio:myProfile.bio||"",avatar_choice:myAvatarChoice}).eq("username",myProfile.name).then(function(r){if(r.error)console.error("Avatar save failed:",r.error);});
   }
 }
 
@@ -2761,6 +2768,7 @@ function pickPath(role){
 
 var _currentTab='home';
 function switchTab(tab) {
+    var panel=document.getElementById("panel-"+tab);if(!panel)return;
   if(tab!==_currentTab){track('page_view',{page_name:tab,previous_page:_currentTab});_currentTab=tab;}
   document.querySelectorAll('.section-panel').forEach(function(p){p.classList.remove('active');});
   document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.remove('active');});
@@ -3824,7 +3832,7 @@ function saveProfile() {
   myProfile.tags = tagsStr ? tagsStr.split(',').map(t => t.trim()).filter(Boolean) : [];
 
   // Update UI elements
-  document.querySelector('.user-mini span:last-child').textContent = myProfile.name + ' ⚙';
+  document.querySelector('.user-mini span:nth-child(2)').textContent = myProfile.name + ' ⚙';
   document.querySelector('.user-mini .avatar').textContent = myProfile.name.slice(0, 1);
 
   // Update my posts attribution
@@ -3860,6 +3868,7 @@ const postComments = {}; // postId -> [{author, text, time}]
 
 function fmtTime(ts){var d=new Date(ts);var now=new Date();var diff=Math.floor((now-d)/1000);if(diff<60)return"刚刚";if(diff<3600)return Math.floor(diff/60)+"分钟前";if(diff<86400)return Math.floor(diff/3600)+"小时前";if(diff<604800)return Math.floor(diff/86400)+"天前";return d.toLocaleDateString("zh-CN");}
 async function openPostDetail(postId) {
+  closePostDetail();
   currentPostId = postId;
   track('post_view',{post_id:postId});
   var p = posts.find(function(x){ return x.id === postId; });
