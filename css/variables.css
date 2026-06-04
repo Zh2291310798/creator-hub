@@ -1,1 +1,43 @@
-/* Variables are defined in pages.css after mechanical extraction. */
+/* ========================================
+   CSS VARIABLES — Inherited from Builder Jam
+   ======================================== */
+:root {
+  --paper: #fdfbf7;
+  --ink: #2d2d2d;
+  --muted: #e5e0d8;
+  --red: #ff4d4d;
+  --blue: #2d5da1;
+  --sage: #7aa874;
+  --avatar: #f4a261;
+  --postit: #fff9c4;
+  --green: #bdeca6;
+  --orange: #ffd49a;
+  --gray: #f2eee6;
+  --white: #fffefb;
+  --shadow: 4px 4px 0 0 var(--ink);
+  --shadow-soft: 3px 3px 0 0 rgba(45,45,45,.16);
+  --shadow-big: 8px 8px 0 0 var(--ink);
+  --wobbly: 255px 15px 225px 15px / 15px 225px 15px 255px;
+  --wobbly-sm: 20px 5px 18px 8px / 8px 20px 5px 18px;
+  --wobbly-md: 18px 34px 22px 28px / 26px 19px 32px 18px;
+  --wobbly-lg: 42px 26px 36px 24px / 30px 44px 22px 36px;
+  --font-title: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+  --font-body: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+
+  /* Platform colors */
+  --xhs: #FF2442;
+  --douyin: #111111;
+  --kuaishou: #FF4906;
+  --bilibili: #FB7299;
+  --wechat: #07C160;
+  --weibo: #E6162D;
+  --youtube: #FF0000;
+  --tiktok: #00F2EA;
+  --instagram: #E1306C;
+  --taobao: #FF5000;
+  --pdd: #E02E24;
+  --zhihu: #0066FF;
+  --dewu: #222222;
+  --xigua: #F44838;
+  --all-platform: #6C5CE7;
+}
