@@ -7,13 +7,57 @@
 -- 4. Run the same query a second time to verify idempotency.
 -- 5. Deploy the frontend only after the migration succeeds.
 
+-- Ensure required tables & columns exist (idempotent)
+CREATE TABLE IF NOT EXISTS invitation_codes (
+  code TEXT PRIMARY KEY,
+  inviter_username TEXT NOT NULL,
+  used_by TEXT,
+  used_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE invitation_codes ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE IF NOT EXISTS reviews (
+  id BIGSERIAL PRIMARY KEY,
+  deal_id TEXT NOT NULL,
+  reviewer TEXT NOT NULL,
+  reviewee TEXT NOT NULL,
+  role TEXT NOT NULL,
+  ratings JSONB NOT NULL DEFAULT '{}',
+  comment TEXT DEFAULT '',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(deal_id, reviewer, reviewee)
+);
+ALTER TABLE reviews ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS trust_score INTEGER DEFAULT 0;
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE match_demands ADD COLUMN IF NOT EXISTS deal_status TEXT DEFAULT 'open';
+ALTER TABLE match_demands ADD COLUMN IF NOT EXISTS deal_partner TEXT;
+ALTER TABLE match_demands ADD COLUMN IF NOT EXISTS deal_confirmed_at TIMESTAMPTZ;
+ALTER TABLE match_demands ADD COLUMN IF NOT EXISTS deal_closed_at TIMESTAMPTZ;
+
 CREATE OR REPLACE FUNCTION current_username()
 RETURNS text AS $$
   SELECT username FROM profiles WHERE id = auth.uid()
 $$ LANGUAGE sql STABLE SECURITY INVOKER;
 
-REVOKE UPDATE (xp, level, trust_score) ON profiles FROM authenticated;
-REVOKE UPDATE (xp, level, trust_score) ON profiles FROM anon;
+-- Revoke client write access to server-managed columns
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='profiles' AND column_name='xp') THEN
+    REVOKE UPDATE (xp) ON profiles FROM authenticated, anon;
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='profiles' AND column_name='level') THEN
+    REVOKE UPDATE (level) ON profiles FROM authenticated, anon;
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='profiles' AND column_name='trust_score') THEN
+    REVOKE UPDATE (trust_score) ON profiles FROM authenticated, anon;
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='profiles' AND column_name='is_admin') THEN
+    REVOKE UPDATE (is_admin) ON profiles FROM authenticated, anon;
+  END IF;
+END $$;
 
 DROP POLICY IF EXISTS "allow_insert_auth" ON posts;
 DROP POLICY IF EXISTS "posts_insert_own_v2" ON posts;
@@ -70,17 +114,29 @@ DROP POLICY IF EXISTS "xp_records_insert_own_v2" ON xp_records;
 CREATE POLICY "xp_records_insert_own_v2" ON xp_records FOR INSERT
   WITH CHECK (username = current_username());
 
-DROP POLICY IF EXISTS "allow_insert_auth" ON reviews;
-DROP POLICY IF EXISTS "reviews_insert_auth" ON reviews;
-DROP POLICY IF EXISTS "reviews_insert_own_v2" ON reviews;
-CREATE POLICY "reviews_insert_own_v2" ON reviews FOR INSERT
-  WITH CHECK (reviewer = current_username());
+-- Reviews table policies (if table exists)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='reviews') THEN
+    DROP POLICY IF EXISTS "allow_insert_auth" ON reviews;
+    DROP POLICY IF EXISTS "reviews_insert_auth" ON reviews;
+    DROP POLICY IF EXISTS "reviews_insert_own_v2" ON reviews;
+    CREATE POLICY "reviews_insert_own_v2" ON reviews FOR INSERT
+      WITH CHECK (reviewer = current_username());
+  END IF;
+END $$;
 
-DROP POLICY IF EXISTS "allow_insert_auth" ON invitation_codes;
-DROP POLICY IF EXISTS "invite_insert_auth" ON invitation_codes;
-DROP POLICY IF EXISTS "invitation_codes_insert_own_v2" ON invitation_codes;
-CREATE POLICY "invitation_codes_insert_own_v2" ON invitation_codes FOR INSERT
-  WITH CHECK (inviter_username = current_username());
+-- Invitation codes policies (if table exists)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='invitation_codes') THEN
+    DROP POLICY IF EXISTS "allow_insert_auth" ON invitation_codes;
+    DROP POLICY IF EXISTS "invite_insert_auth" ON invitation_codes;
+    DROP POLICY IF EXISTS "invitation_codes_insert_own_v2" ON invitation_codes;
+    CREATE POLICY "invitation_codes_insert_own_v2" ON invitation_codes FOR INSERT
+      WITH CHECK (inviter_username = current_username());
+  END IF;
+END $$;
 
 DROP POLICY IF EXISTS "allow_insert_auth" ON post_likes;
 DROP POLICY IF EXISTS "likes_insert_auth" ON post_likes;
@@ -245,6 +301,21 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public;
 
+-- Trust score calculation: based on XP level + review count + friend count
+CREATE OR REPLACE FUNCTION calc_trust_score(p_username text)
+RETURNS integer AS $$
+DECLARE
+  base_score integer;
+  review_bonus integer;
+  friend_bonus integer;
+BEGIN
+  SELECT COALESCE(xp, 0) INTO base_score FROM profiles WHERE username = p_username;
+  SELECT COALESCE(COUNT(*), 0) INTO review_bonus FROM reviews WHERE reviewee = p_username;
+  SELECT COALESCE(COUNT(*), 0) INTO friend_bonus FROM friends WHERE username = p_username;
+  RETURN FLOOR(base_score / 10) + (review_bonus * 5) + (friend_bonus * 2);
+END;
+$$ LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public;
+
 CREATE OR REPLACE FUNCTION recompute_trust_score(p_username text)
 RETURNS integer AS $$
 DECLARE
@@ -260,6 +331,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public;
 
+-- Reviews trigger function
 CREATE OR REPLACE FUNCTION reviews_recompute_trust_score()
 RETURNS trigger AS $$
 BEGIN
@@ -268,79 +340,97 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
-DROP TRIGGER IF EXISTS reviews_recompute_trust_score_after_insert ON reviews;
-CREATE TRIGGER reviews_recompute_trust_score_after_insert
-  AFTER INSERT ON reviews
-  FOR EACH ROW EXECUTE FUNCTION reviews_recompute_trust_score();
-
-CREATE OR REPLACE FUNCTION confirm_deal(p_deal_id text, p_partner text)
-RETURNS text AS $$
-DECLARE
-  caller text;
-  deal_poster text;
-  current_status text;
+-- Reviews trigger (if reviews table exists)
+DO $$
 BEGIN
-  caller := current_username();
-  SELECT poster, deal_status INTO deal_poster, current_status FROM match_demands WHERE id = p_deal_id;
-
-  IF caller IS NULL OR deal_poster IS NULL OR caller != deal_poster THEN
-    RAISE EXCEPTION 'forbidden';
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='reviews') THEN
+    DROP TRIGGER IF EXISTS reviews_recompute_trust_score_after_insert ON reviews;
+    CREATE TRIGGER reviews_recompute_trust_score_after_insert
+      AFTER INSERT ON reviews
+      FOR EACH ROW EXECUTE FUNCTION reviews_recompute_trust_score();
   END IF;
-  IF current_status != 'negotiating' AND current_status != 'open' THEN
-    RETURN 'error: invalid status';
-  END IF;
+END $$;
 
-  UPDATE match_demands SET deal_status = 'active', deal_partner = p_partner, deal_confirmed_at = now()
-  WHERE id = p_deal_id;
-  INSERT INTO notifications (username, type, content, from_user)
-  VALUES (p_partner, '对接', '合作已确认！', deal_poster);
-  RETURN 'ok';
-END;
-$$ LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public;
-
-CREATE OR REPLACE FUNCTION complete_deal(p_deal_id text)
-RETURNS text AS $$
-DECLARE
-  caller text;
-  deal_poster text;
-  partner text;
+-- Deal functions (if match_demands has deal columns)
+DO $$
 BEGIN
-  caller := current_username();
-  SELECT poster, deal_partner INTO deal_poster, partner FROM match_demands WHERE id = p_deal_id;
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='match_demands' AND column_name='deal_status') THEN
+    CREATE OR REPLACE FUNCTION confirm_deal(p_deal_id text, p_partner text)
+    RETURNS text AS $fn$
+    DECLARE
+      caller text;
+      deal_poster text;
+      current_status text;
+    BEGIN
+      caller := current_username();
+      SELECT poster, deal_status INTO deal_poster, current_status FROM match_demands WHERE id = p_deal_id;
 
-  IF caller IS NULL OR deal_poster IS NULL OR (caller != deal_poster AND caller != partner) THEN
-    RAISE EXCEPTION 'forbidden';
+      IF caller IS NULL OR deal_poster IS NULL OR caller != deal_poster THEN
+        RAISE EXCEPTION 'forbidden';
+      END IF;
+      IF current_status != 'negotiating' AND current_status != 'open' THEN
+        RETURN 'error: invalid status';
+      END IF;
+
+      UPDATE match_demands SET deal_status = 'active', deal_partner = p_partner, deal_confirmed_at = now()
+      WHERE id = p_deal_id;
+      INSERT INTO notifications (username, type, content, from_user)
+      VALUES (p_partner, '对接', '合作已确认！', deal_poster);
+      RETURN 'ok';
+    END;
+    $fn$ LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public;
+
+    CREATE OR REPLACE FUNCTION complete_deal(p_deal_id text)
+    RETURNS text AS $fn2$
+    DECLARE
+      caller text;
+      deal_poster text;
+      partner text;
+    BEGIN
+      caller := current_username();
+      SELECT poster, deal_partner INTO deal_poster, partner FROM match_demands WHERE id = p_deal_id;
+
+      IF caller IS NULL OR deal_poster IS NULL OR (caller != deal_poster AND caller != partner) THEN
+        RAISE EXCEPTION 'forbidden';
+      END IF;
+
+      UPDATE match_demands SET deal_status = 'completed', deal_closed_at = now()
+      WHERE id = p_deal_id AND deal_status = 'active';
+      RETURN 'ok';
+    END;
+    $fn2$ LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public;
   END IF;
+END $$;
 
-  UPDATE match_demands SET deal_status = 'completed', deal_closed_at = now()
-  WHERE id = p_deal_id AND deal_status = 'active';
-  RETURN 'ok';
-END;
-$$ LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public;
-
-CREATE OR REPLACE FUNCTION can_review(p_reviewer text, p_reviewee text, p_deal_id text)
-RETURNS boolean AS $$
-DECLARE
-  caller text;
-  msg_count integer;
-  already_reviewed boolean;
+-- Review permission check (if reviews table exists)
+DO $$
 BEGIN
-  caller := current_username();
-  IF caller IS NULL OR p_reviewer != caller THEN
-    RAISE EXCEPTION 'forbidden';
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='reviews') THEN
+    CREATE OR REPLACE FUNCTION can_review(p_reviewer text, p_reviewee text, p_deal_id text)
+    RETURNS boolean AS $fn3$
+    DECLARE
+      caller text;
+      msg_count integer;
+      already_reviewed boolean;
+    BEGIN
+      caller := current_username();
+      IF caller IS NULL OR p_reviewer != caller THEN
+        RAISE EXCEPTION 'forbidden';
+      END IF;
+
+      SELECT COUNT(*) INTO msg_count FROM chat_messages
+      WHERE (sender = p_reviewer AND recipient = p_reviewee)
+         OR (sender = p_reviewee AND recipient = p_reviewer);
+
+      SELECT EXISTS(
+        SELECT 1 FROM reviews WHERE deal_id = p_deal_id AND reviewer = p_reviewer
+      ) INTO already_reviewed;
+
+      RETURN msg_count >= 5 AND NOT already_reviewed;
+    END;
+    $fn3$ LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public;
   END IF;
-
-  SELECT COUNT(*) INTO msg_count FROM chat_messages
-  WHERE (sender = p_reviewer AND recipient = p_reviewee)
-     OR (sender = p_reviewee AND recipient = p_reviewer);
-
-  SELECT EXISTS(
-    SELECT 1 FROM reviews WHERE deal_id = p_deal_id AND reviewer = p_reviewer
-  ) INTO already_reviewed;
-
-  RETURN msg_count >= 5 AND NOT already_reviewed;
-END;
-$$ LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public;
+END $$;
 
 CREATE OR REPLACE FUNCTION get_poll_updates(
   since_ts timestamptz,
