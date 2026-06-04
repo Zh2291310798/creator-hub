@@ -76,6 +76,18 @@ CREATE TABLE IF NOT EXISTS comments (
 );
 
 -- ============================================
+-- 3b. 通用评论（招募/对接/本地需求通用）
+-- ============================================
+CREATE TABLE IF NOT EXISTS item_comments (
+  id BIGSERIAL PRIMARY KEY,
+  item_id TEXT NOT NULL,
+  item_type TEXT NOT NULL DEFAULT 'recruit',
+  author TEXT NOT NULL,
+  content TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ============================================
 -- 4. 聊天
 -- ============================================
 CREATE TABLE IF NOT EXISTS chat_messages (
@@ -127,6 +139,7 @@ CREATE TABLE IF NOT EXISTS recruits (
   tags JSONB DEFAULT '[]'::jsonb,
   status TEXT DEFAULT '招募中',
   status_class TEXT DEFAULT 'active-recruit',
+  posted_by TEXT DEFAULT '',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -178,8 +191,18 @@ CREATE TABLE IF NOT EXISTS friend_requests (
   from_user TEXT NOT NULL,
   to_user TEXT NOT NULL,
   status TEXT DEFAULT 'pending',
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  message TEXT DEFAULT '',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(from_user, to_user)
 );
+
+-- Add message column if table already exists (idempotent migration)
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='friend_requests' AND column_name='message') THEN
+    ALTER TABLE friend_requests ADD COLUMN message TEXT DEFAULT '';
+  END IF;
+END $$;
 
 -- ============================================
 -- 10. XP
@@ -220,7 +243,16 @@ CREATE TABLE IF NOT EXISTS tracking_events (
 -- ============================================
 -- RLS 策略（简化版：认证用户可读可写）
 -- ============================================
+CREATE TABLE IF NOT EXISTS post_likes (
+  post_id TEXT NOT NULL,
+  username TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (post_id, username)
+);
+
+ALTER TABLE item_comments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE post_likes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE posts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE comments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
@@ -236,6 +268,7 @@ ALTER TABLE onboarding_status ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tracking_events ENABLE ROW LEVEL SECURITY;
 
 -- 认证用户可读所有公开数据
+CREATE POLICY "allow_select_auth" ON item_comments FOR SELECT USING (true);
 CREATE POLICY "allow_select_auth" ON profiles FOR SELECT USING (true);
 CREATE POLICY "allow_select_auth" ON posts FOR SELECT USING (true);
 CREATE POLICY "allow_select_auth" ON comments FOR SELECT USING (true);
@@ -247,6 +280,7 @@ CREATE POLICY "allow_select_auth" ON local_demands FOR SELECT USING (true);
 -- 认证用户可写
 CREATE POLICY "allow_insert_auth" ON posts FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
 CREATE POLICY "allow_insert_auth" ON comments FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+CREATE POLICY "allow_insert_auth" ON item_comments FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
 CREATE POLICY "allow_insert_auth" ON chat_messages FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
 CREATE POLICY "allow_insert_auth" ON world_messages FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
 CREATE POLICY "allow_insert_auth" ON notifications FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
@@ -268,6 +302,8 @@ CREATE POLICY "notif_update_own" ON notifications FOR UPDATE
   USING ((select username from profiles where id = auth.uid()) = username);
 CREATE POLICY "friends_read_own" ON friends FOR SELECT
   USING ((select username from profiles where id = auth.uid()) = username);
+  USING (auth.uid() IS NOT NULL);
+CREATE POLICY "friends_all_auth" ON friends FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "fr_read_own" ON friend_requests FOR SELECT
   USING ((select username from profiles where id = auth.uid()) = to_user OR (select username from profiles where id = auth.uid()) = from_user);
 CREATE POLICY "xp_read_own" ON xp_records FOR SELECT
@@ -276,6 +312,9 @@ CREATE POLICY "ob_read_own" ON onboarding_status FOR SELECT
   USING ((select username from profiles where id = auth.uid()) = username);
 CREATE POLICY "ob_update_own" ON onboarding_status FOR UPDATE
   USING ((select username from profiles where id = auth.uid()) = username);
+  USING (auth.uid() IS NOT NULL);
+CREATE POLICY "post_likes_all_auth" ON post_likes FOR ALL USING (true) WITH CHECK (true);
+
 CREATE POLICY "track_read_own" ON tracking_events FOR SELECT
   USING (true);
 CREATE POLICY "profile_update_own" ON profiles FOR UPDATE
@@ -286,10 +325,15 @@ CREATE POLICY "profile_insert_own" ON profiles FOR INSERT
 -- 删除：仅自己的数据
 CREATE POLICY "posts_delete_own_auth" ON posts FOR DELETE
   USING ((select username from profiles where id = auth.uid()) = author);
+  USING (auth.uid() IS NOT NULL);
+CREATE POLICY "posts_update_own_auth" ON posts FOR UPDATE USING (auth.uid() IS NOT NULL);
 CREATE POLICY "recruits_delete_own_auth" ON recruits FOR DELETE
   USING ((select username from profiles where id = auth.uid()) = poster);
 CREATE POLICY "local_delete_own_auth" ON local_demands FOR DELETE
   USING ((select username from profiles where id = auth.uid()) = poster);
+  USING (auth.uid() IS NOT NULL);
+CREATE POLICY "fr_delete_own" ON friend_requests FOR DELETE USING (auth.uid() IS NOT NULL);
+CREATE POLICY "fr_insert_own" ON friend_requests FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
 CREATE POLICY "friends_delete_own_auth" ON friends FOR DELETE
   USING ((select username from profiles where id = auth.uid()) = username);
 
@@ -301,12 +345,20 @@ ALTER PUBLICATION supabase_realtime ADD TABLE world_messages;
 ALTER PUBLICATION supabase_realtime ADD TABLE notifications;
 ALTER PUBLICATION supabase_realtime ADD TABLE posts;
 ALTER PUBLICATION supabase_realtime ADD TABLE comments;
+ALTER PUBLICATION supabase_realtime ADD TABLE recruits;
+ALTER PUBLICATION supabase_realtime ADD TABLE match_demands;
+ALTER PUBLICATION supabase_realtime ADD TABLE friend_requests;
+ALTER PUBLICATION supabase_realtime ADD TABLE friends;
+ALTER PUBLICATION supabase_realtime ADD TABLE local_demands;
+ALTER PUBLICATION supabase_realtime ADD TABLE post_likes;
+ALTER PUBLICATION supabase_realtime ADD TABLE item_comments;
 
 -- ============================================
 -- 索引
 -- ============================================
 CREATE INDEX IF NOT EXISTS idx_posts_created ON posts(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_comments_post ON comments(post_id);
+CREATE INDEX IF NOT EXISTS idx_item_comments ON item_comments(item_id, item_type, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_chat_users ON chat_messages(sender, recipient, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_world_time ON world_messages(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_notif_user ON notifications(username, is_read, created_at DESC);
@@ -325,8 +377,123 @@ INSERT INTO posts (id, author, author_avatar, title, category, category_label, c
 ('p5', '运营老司机', '运', '跨平台运营值不值得？抖音+小红书真实对比', 'qa', '求助问答', '目前在抖音做了半年有2w粉，在想要不要同时做小红书。两边内容风格差异大…', 'all')
 ON CONFLICT (id) DO NOTHING;
 
+-- 种子招募（让招募页不空）
+INSERT INTO recruits (id, title, poster, poster_avatar, type, mode, description, detail, budget, city, platforms, tags, status, status_class, posted_by) VALUES
+('r1', '急需小红书运营达人', '品牌主理人阿Jay', 'J', 'maker', '全职', '寻找小红书运营达人，负责品牌账号的日常运营和内容策划', '需要3年以上小红书运营经验，熟悉平台算法，有成功案例', '8K-15K', '上海', '["xhs"]', '["运营","达人","急招"]', '招募中', 'active-recruit', '品牌主理人阿Jay'),
+('r2', '抖音短视频拍摄', '运营老司机', '运', 'maker', '项目制', '需要一位抖音短视频拍摄剪辑，美食类内容', '拍摄+剪辑一体，有美食类账号经验优先', '项目报价', '北京', '["douyin"]', '["拍摄","剪辑","美食"]', '招募中', 'active-recruit', '运营老司机'),
+('r3', '全平台代运营合作', '品牌主理人阿Jay', 'J', 'merchant', '全职', '品牌方寻找全平台代运营团队，覆盖小红书+抖音+B站', '需要完整的运营方案和过往案例', '面议', '深圳', '["xhs","douyin","bilibili"]', '["代运营","品牌","多平台"]', '招募中', 'active-recruit', '品牌主理人阿Jay')
+ON CONFLICT (id) DO NOTHING;
+
 -- ============================================
 -- ✅ 执行完毕
 -- ============================================
 -- 看到 "Success. No rows returned" 即完成
 -- 然后告诉我，我会接着改造前端代码
+
+-- ============================================
+-- v1.0.2 更新：好友请求加备注 + RPC 更新
+-- ============================================
+
+-- 更新 RPC 函数 get_poll_updates，让 friend_reqs 返回 message 字段
+CREATE OR REPLACE FUNCTION get_poll_updates(
+  since_ts TIMESTAMPTZ,
+  username_query TEXT,
+  post_ids TEXT[]
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  result JSONB;
+  new_posts JSONB;
+  notifs JSONB;
+  chat_msgs JSONB;
+  new_comments JSONB;
+  likes_sync JSONB;
+  new_recruits JSONB;
+  new_matches JSONB;
+  new_local JSONB;
+  world_msgs JSONB;
+  friend_reqs JSONB;
+  sent_reqs JSONB;
+  my_friends JSONB;
+BEGIN
+  -- 1. New posts since timestamp
+  SELECT COALESCE(jsonb_agg(row_to_json(p)), '[]'::jsonb)
+  INTO new_posts
+  FROM (SELECT * FROM posts WHERE created_at > since_ts ORDER BY created_at DESC LIMIT 30) p;
+
+  -- 2. Notifications
+  SELECT COALESCE(jsonb_agg(row_to_json(n)), '[]'::jsonb)
+  INTO notifs
+  FROM (SELECT * FROM notifications WHERE username = username_query AND created_at > since_ts ORDER BY created_at DESC LIMIT 20) n;
+
+  -- 3. Chat messages
+  SELECT COALESCE(jsonb_agg(row_to_json(m)), '[]'::jsonb)
+  INTO chat_msgs
+  FROM (SELECT * FROM chat_messages WHERE (sender = username_query OR recipient = username_query) AND created_at > since_ts ORDER BY created_at ASC LIMIT 50) m;
+
+  -- 4. New comments
+  SELECT COALESCE(jsonb_agg(row_to_json(c)), '[]'::jsonb)
+  INTO new_comments
+  FROM (SELECT * FROM comments WHERE created_at > since_ts ORDER BY created_at ASC LIMIT 50) c;
+
+  -- 5. Likes sync (for all loaded posts)
+  SELECT COALESCE(jsonb_agg(row_to_json(pl)), '[]'::jsonb)
+  INTO likes_sync
+  FROM (SELECT id, likes, comment_count FROM posts WHERE id = ANY(post_ids)) pl;
+
+  -- 6. New recruits
+  SELECT COALESCE(jsonb_agg(row_to_json(r)), '[]'::jsonb)
+  INTO new_recruits
+  FROM (SELECT * FROM recruits WHERE created_at > since_ts ORDER BY created_at DESC LIMIT 20) r;
+
+  -- 7. New match demands
+  SELECT COALESCE(jsonb_agg(row_to_json(md)), '[]'::jsonb)
+  INTO new_matches
+  FROM (SELECT * FROM match_demands WHERE created_at > since_ts ORDER BY created_at DESC LIMIT 20) md;
+
+  -- 8. New local demands
+  SELECT COALESCE(jsonb_agg(row_to_json(ld)), '[]'::jsonb)
+  INTO new_local
+  FROM (SELECT * FROM local_demands WHERE created_at > since_ts ORDER BY created_at DESC LIMIT 20) ld;
+
+  -- 9. World messages
+  SELECT COALESCE(jsonb_agg(row_to_json(wm)), '[]'::jsonb)
+  INTO world_msgs
+  FROM (SELECT * FROM world_messages WHERE created_at > since_ts ORDER BY created_at DESC LIMIT 30) wm;
+
+  -- 10. Friend requests (incoming — to me)
+  SELECT COALESCE(jsonb_agg(row_to_json(fr)), '[]'::jsonb)
+  INTO friend_reqs
+  FROM (SELECT from_user, message, status, created_at FROM friend_requests WHERE to_user = username_query AND status = 'pending' ORDER BY created_at DESC LIMIT 50) fr;
+
+  -- 11. Sent requests (outgoing — from me)
+  SELECT COALESCE(jsonb_agg(row_to_json(sr)), '[]'::jsonb)
+  INTO sent_reqs
+  FROM (SELECT to_user, status, created_at FROM friend_requests WHERE from_user = username_query AND status = 'pending' ORDER BY created_at DESC LIMIT 50) sr;
+
+  -- 12. My friends
+  SELECT COALESCE(jsonb_agg(friend_name), '[]'::jsonb)
+  INTO my_friends
+  FROM (SELECT friend_name FROM friends WHERE username = username_query ORDER BY created_at DESC) f;
+
+  result := jsonb_build_object(
+    'new_posts', new_posts,
+    'notifs', notifs,
+    'chat_msgs', chat_msgs,
+    'new_comments', new_comments,
+    'likes_sync', likes_sync,
+    'new_recruits', new_recruits,
+    'new_matches', new_matches,
+    'new_local', new_local,
+    'world_msgs', world_msgs,
+    'friend_reqs', friend_reqs,
+    'sent_reqs', sent_reqs,
+    'my_friends', my_friends
+  );
+
+  RETURN result;
+END;
+$$;
