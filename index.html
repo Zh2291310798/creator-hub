@@ -1572,7 +1572,7 @@ input, textarea, select { font: inherit; }
     </div>
     <div class="platform-wall" id="platformWall"></div>
     <div class="home-stats-bar">
-      <div class="home-stat-item"><span class="num" id="homeStatCreators">0</span><span class="lbl">在线创作者</span></div>
+      <div class="home-stat-item"><span class="num" id="homeStatCreators">0</span><span class="lbl">创作者</span></div>
       <div class="home-stat-item"><span class="num" id="homeStatRecruits">0</span><span class="lbl">本周新招募</span></div>
       <div class="home-stat-item"><span class="num" id="homeStatMatches">0</span><span class="lbl">成功对接</span></div>
       <div class="home-stat-item"><span class="num" id="homeStatPosts">0</span><span class="lbl">今日新帖</span></div>
@@ -1588,8 +1588,7 @@ input, textarea, select { font: inherit; }
       <div class="home-path-card" onclick="pickPath('brand')"><span class="path-icon">🏢</span><h3>我是品牌方</h3><p>找达人推广、发布招募</p></div>
       <div class="home-path-card" onclick="pickPath('merchant')"><span class="path-icon">📦</span><h3>我是商家</h3><p>找主播带货、对接资源</p></div>
     </div>
-    <div class="online-row" id="onlineRow"></div>
-  </section>
+      </section>
 
 
   <!-- ========================================
@@ -1605,7 +1604,7 @@ input, textarea, select { font: inherit; }
     </div>
 
     <div class="hero-stats">
-      <div class="stat-card" style="--tilt:-1.2deg"><b id="sqStatCreators">0</b><span>在线创作者</span></div>
+      <div class="stat-card" style="--tilt:-1.2deg"><b id="sqStatCreators">0</b><span>创作者</span></div>
       <div class="stat-card" style="--tilt:0.8deg"><b id="sqStatRecruits">0</b><span>本周新招募</span></div>
       <div class="stat-card" style="--tilt:-0.5deg"><b id="sqStatMatches">0</b><span>成功对接</span></div>
       <div class="stat-card" style="--tilt:1.1deg"><b id="sqStatPosts">0</b><span>今日新帖</span></div>
@@ -2074,6 +2073,20 @@ input, textarea, select { font: inherit; }
   </div>
 </div>
 
+<!-- Friend request message dialog -->
+<div class="msg-dialog" id="friendReqDialog" onclick="if(event.target===this)closeFriendReqDialog()">
+  <div class="msg-dialog-card">
+    <h3>👋 加好友</h3>
+    <p>发送给：<strong id="friendReqTarget"></strong></p>
+    <p style="font-size:14px;color:rgba(45,45,45,.5);margin-top:-6px;">介绍一下你是谁、为什么想加好友，提高通过率 ✨</p>
+    <textarea id="friendReqInput" rows="3" placeholder="你好！看到你的帖子想合作交流..."></textarea>
+    <div class="msg-dialog-actions">
+      <button class="btn green" onclick="confirmFriendReq()">👥 发送好友请求</button>
+      <button class="btn secondary" onclick="closeFriendReqDialog()">取消</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="overlay" onclick="closeDrawer()"></div>
 <aside class="drawer" id="drawer" aria-hidden="true">
   <div class="drawer-head">
@@ -2100,6 +2113,14 @@ input, textarea, select { font: inherit; }
       <div class="platform-tags" id="drawerPlatforms"></div>
     </div>
     <div class="tags" id="drawerTags"></div>
+    <div class="drawer-comments" id="drawerComments" style="margin-top:14px;border-top:2px dashed var(--muted);padding-top:12px;">
+      <h4 style="font-family:var(--font-title);font-size:18px;margin:0 0 10px;">💬 留言</h4>
+      <div id="drawerCommentsList"></div>
+      <div style="display:flex;gap:6px;margin-top:8px;">
+        <input type="text" id="drawerCommentInput" placeholder="写留言...（Enter 发送）" style="flex:1;padding:8px 12px;border:2px solid var(--ink);border-radius:var(--wobbly);background:var(--gray);font-size:14px;outline:none;" />
+        <button class="btn" id="drawerCommentBtn" onclick="addItemComment()" style="font-size:13px;padding:6px 14px;">发送</button>
+      </div>
+    </div>
     <div class="drawer-actions" id="drawerActions">
       <button class="btn" onclick="showToast('已发送意向！对方会收到通知')" style="font-size:18px;">🤝 我有意向</button>
       <button class="btn secondary" onclick="showToast('已复制联系方式')">📋 复制联系方式</button>
@@ -2198,8 +2219,6 @@ async function loadSession(user){
   if((role==='student'||role==='career_switcher')&&!localStorage.getItem('creatorhub_onboarding_'+currentUser)){setTimeout(function(){showOnboarding();},500);}
   setTimeout(function(){checkNotifications();},600);
   setTimeout(function(){updateNotifyBadge();},700);
-  // Mark online immediately
-  sb.from('profiles').update({last_seen:new Date().toISOString()}).eq('username',myProfile.name).then(function(){}).catch(function(){});
   showToast('欢迎回来，'+myProfile.name+'！👋');
 }
 
@@ -2310,7 +2329,7 @@ function setupRealtime(){
     .on("postgres_changes",{event:"INSERT",schema:"public",table:"notifications",filter:"username=eq."+currentUser},
       function(p){if(p.new){saveNotify(emoFor(p.new.type),p.new.from_user+' → '+p.new.content.slice(0,30),p.new.content,actFor(p.new.type),p.new.created_at);}updateNotifyBadge();})
     .subscribe();
-  sb.channel("recruits-live").on("postgres_changes",{event:"INSERT",schema:"public",table:"recruits"},function(p){if(p.new){if(!recruits.find(function(x){return x.id===p.new.id;})){var _rn={id:p.new.id,title:p.new.title,poster:p.new.poster,avatar:p.new.poster_avatar||p.new.poster.slice(0,1),avatarBg:"",type:p.new.type||"maker",mode:p.new.mode||"全职",desc:p.new.description||"",detail:p.new.detail||p.new.description||"",budget:p.new.budget||"面议",city:p.new.city||"",platforms:typeof p.new.platforms==="string"?JSON.parse(p.new.platforms||"[]"):(p.new.platforms||[]),tags:typeof p.new.tags==="string"?JSON.parse(p.new.tags||"[]"):(p.new.tags||[]),status:p.new.status||"招募中",statusClass:p.new.status_class||"active-recruit"};recruits.unshift(_rn);renderRecruits();}}}).subscribe();
+  sb.channel("recruits-live").on("postgres_changes",{event:"INSERT",schema:"public",table:"recruits"},function(p){if(p.new){if(!recruits.find(function(x){return x.id===p.new.id;})){var _rn={id:p.new.id,title:p.new.title,poster:p.new.poster,postedBy:p.new.posted_by||p.new.poster||"",avatar:p.new.poster_avatar||p.new.poster.slice(0,1),avatarBg:"",type:p.new.type||"maker",mode:p.new.mode||"全职",desc:p.new.description||"",detail:p.new.detail||p.new.description||"",budget:p.new.budget||"面议",city:p.new.city||"",platforms:typeof p.new.platforms==="string"?JSON.parse(p.new.platforms||"[]"):(p.new.platforms||[]),tags:typeof p.new.tags==="string"?JSON.parse(p.new.tags||"[]"):(p.new.tags||[]),status:p.new.status||"招募中",statusClass:p.new.status_class||"active-recruit"};recruits.unshift(_rn);renderRecruits();}}}).subscribe();
   sb.channel("posts-live")
     .on("postgres_changes",{event:"INSERT",schema:"public",table:"posts"},
       function(p){if(p.new&&!posts.find(function(x){return x.id===p.new.id;})){posts.unshift({id:p.new.id,title:p.new.title,category:p.new.category,categoryLabel:p.new.category_label||"其他",maker:p.new.author,avatar:p.new.author_avatar,time:"刚刚",desc:p.new.content,platform:p.new.platform||"all",likes:p.new.likes||0,comments:p.new.comment_count||0});renderPosts();}})
@@ -2318,14 +2337,14 @@ function setupRealtime(){
 			function(p){if(p.new){var ep=posts.find(function(x){return x.id===p.new.id;});if(ep){ep.likes=p.new.likes||0;ep.comments=p.new.comment_count||0;renderPosts();}}})
 		.on("postgres_changes",{event:"DELETE",schema:"public",table:"posts"},function(p){if(p.old){var idx=posts.findIndex(function(x){return x.id===p.old.id;});if(idx>=0){posts.splice(idx,1);renderPosts();}}}).subscribe();
   var _matchCh=sb.channel("match-live").on("postgres_changes",{event:"INSERT",schema:"public",table:"match_demands"},function(p){if(p.new){var arr=p.new.role==="brand"?brandSeekingData:creatorSeekingData;if(!arr.find(function(x){return x.id===p.new.id;})){var _nmd2={id:p.new.id,title:p.new.description?p.new.description.slice(0,30):"",budget:p.new.budget||"面议",desc:p.new.description||"",platforms:typeof p.new.platforms==="string"?JSON.parse(p.new.platforms||"[]"):(p.new.platforms||[]),tags:[],detail:p.new.description||"",avatar:p.new.poster?p.new.poster.slice(0,1):"?",avatarBg:""};if(p.new.role==="brand"){_nmd2.brand=p.new.poster;}else{_nmd2.creator=p.new.poster;}arr.unshift(_nmd2);renderMatch();}}}).on("postgres_changes",{event:"DELETE",schema:"public",table:"match_demands"},function(p){if(p.old){var _mdel=p.old.role==="brand"?brandSeekingData:creatorSeekingData;var _midx=_mdel.findIndex(function(x){return x.id===p.old.id;});if(_midx>=0){_mdel.splice(_midx,1);renderMatch();}}}).subscribe();
-  sb.channel("friend-req-"+currentUser).on("postgres_changes",{event:"INSERT",schema:"public",table:"friend_requests",filter:"to_user=eq."+currentUser},function(p){if(p.new&&!_localReqActions[p.new.from_user]&&!friendRequests.find(function(x){return x.from===p.new.from_user;})){friendRequests.push({from:p.new.from_user,message:"",time:fmtTime(p.new.created_at)});updateFriendBadge();renderFriendsList();}}).on("postgres_changes",{event:"DELETE",schema:"public",table:"friend_requests",filter:"to_user=eq."+currentUser},function(p){if(p.old){var _fi2=friendRequests.findIndex(function(x){return x.from===p.old.from_user;});if(_fi2>=0){friendRequests.splice(_fi2,1);updateFriendBadge();renderFriendsList();}}}).subscribe();
+  sb.channel("friend-req-"+currentUser).on("postgres_changes",{event:"INSERT",schema:"public",table:"friend_requests",filter:"to_user=eq."+currentUser},function(p){if(p.new&&!_localReqActions[p.new.from_user]&&!friendRequests.find(function(x){return x.from===p.new.from_user;})){friendRequests.push({from:p.new.from_user,message:p.new.message||"",time:fmtTime(p.new.created_at)});updateFriendBadge();renderFriendsList();}}).on("postgres_changes",{event:"DELETE",schema:"public",table:"friend_requests",filter:"to_user=eq."+currentUser},function(p){if(p.old){var _fi2=friendRequests.findIndex(function(x){return x.from===p.old.from_user;});if(_fi2>=0){friendRequests.splice(_fi2,1);updateFriendBadge();renderFriendsList();}}}).subscribe();
   sb.channel("friends-"+currentUser).on("postgres_changes",{event:"INSERT",schema:"public",table:"friends",filter:"username=eq."+currentUser},function(p){if(p.new&&!myFriends.includes(p.new.friend_name)){myFriends.push(p.new.friend_name);var _si=sentRequests.findIndex(function(s){return s.to===p.new.friend_name;});if(_si>=0)sentRequests.splice(_si,1);updateFriendBadge();renderFriendsList();}}).on("postgres_changes",{event:"DELETE",schema:"public",table:"friends",filter:"username=eq."+currentUser},function(p){if(p.old){var _fi=myFriends.indexOf(p.old.friend_name);if(_fi>=0){myFriends.splice(_fi,1);updateFriendBadge();renderFriendsList();}}}).subscribe();
   sb.channel("local-demands-live").on("postgres_changes",{event:"INSERT",schema:"public",table:"local_demands"},function(p){if(p.new&&!localDemands.find(function(x){return x.id===p.new.id;})){localDemands.unshift(p.new);renderLocalMatch();}}).on("postgres_changes",{event:"DELETE",schema:"public",table:"local_demands"},function(p){if(p.old){var _ldi=localDemands.findIndex(function(x){return x.id===p.old.id;});if(_ldi>=0){localDemands.splice(_ldi,1);renderLocalMatch();}}}).subscribe();
+  // Item comments live
+  sb.channel("item-comments-live").on("postgres_changes",{event:"INSERT",schema:"public",table:"item_comments"},function(p){if(p.new){var key=p.new.item_type+':'+p.new.item_id;if(!itemComments[key])itemComments[key]=[];if(!itemComments[key].find(function(x){return x.author===p.new.author&&x.text===p.new.content;})){itemComments[key].push({author:p.new.author,text:p.new.content,time:fmtTime(p.new.created_at)});if(window._currentItemId===p.new.item_id&&window._currentItemType===p.new.item_type){var clist=document.getElementById('drawerCommentsList');if(clist){var cmts=itemComments[key]||[];clist.innerHTML=cmts.map(function(c){return '<div style=\"margin:6px 0;padding:6px 10px;background:var(--gray);border-radius:8px;\"><b>'+escapeHtml(c.author)+'</b> <span style=\"font-size:12px;color:rgba(45,45,45,.4);\">'+c.time+'</span><p style=\"margin:4px 0 0;font-size:14px;\">'+escapeHtml(c.text)+'</p></div>';}).join('');}}}}}).subscribe();
   console.log("Realtime channels subscribed for "+currentUser);
-  window._pollTimer=setInterval(pollUpdates,10000);
-  // Heartbeat: update last_seen every 30s for online presence
-  if(!window._heartbeatTimer){window._heartbeatTimer=setInterval(function(){if(currentUser)sb.from('profiles').update({last_seen:new Date().toISOString()}).eq('username',myProfile.name).then(function(){}).catch(function(){});},30000);}
-  document.addEventListener('visibilitychange',function(){if(!document.hidden){pollUpdates();if(window._pollTimer)clearInterval(window._pollTimer);window._pollTimer=setInterval(pollUpdates,10000);}else{if(window._pollTimer)clearInterval(window._pollTimer);window._pollTimer=setInterval(pollUpdates,30000);}});
+  window._pollTimer=setInterval(pollUpdates,5000);
+  document.addEventListener('visibilitychange',function(){if(!document.hidden){pollUpdates();if(window._pollTimer)clearInterval(window._pollTimer);window._pollTimer=setInterval(pollUpdates,5000);}else{if(window._pollTimer)clearInterval(window._pollTimer);window._pollTimer=setInterval(pollUpdates,30000);}});
 }
 function pollUpdates(){
   if(!currentUser||document.hidden)return;
@@ -2360,7 +2379,7 @@ function pollUpdates(){
     if((d.likes_sync||[]).length>0)renderPosts();
 
     // 6. Recruits
-    (d.new_recruits||[]).forEach(function(rr){if(!recruits.find(function(x){return x.id===rr.id;})){var nr={id:rr.id,title:rr.title,poster:rr.poster,avatar:rr.poster_avatar||rr.poster.slice(0,1),avatarBg:"",type:rr.type||"maker",mode:rr.mode||"全职",desc:rr.description||rr.desc||"",detail:rr.detail||rr.description||"",budget:rr.budget||"面议",city:rr.city||"",platforms:typeof rr.platforms==="string"?JSON.parse(rr.platforms||"[]"):(rr.platforms||[]),tags:typeof rr.tags==="string"?JSON.parse(rr.tags||"[]"):(rr.tags||[]),status:rr.status||"招募中",statusClass:rr.status_class||"active-recruit"};recruits.unshift(nr);}});
+    (d.new_recruits||[]).forEach(function(rr){if(!recruits.find(function(x){return x.id===rr.id;})){var nr={id:rr.id,title:rr.title,poster:rr.poster,avatar:rr.poster_avatar||rr.poster.slice(0,1),avatarBg:"",type:rr.type||"maker",mode:rr.mode||"全职",desc:rr.description||rr.desc||"",detail:rr.detail||rr.description||"",budget:rr.budget||"面议",city:rr.city||"",platforms:typeof rr.platforms==="string"?JSON.parse(rr.platforms||"[]"):(rr.platforms||[]),tags:typeof rr.tags==="string"?JSON.parse(rr.tags||"[]"):(rr.tags||[]),status:rr.status||"招募中",statusClass:rr.status_class||"active-recruit",postedBy:rr.posted_by||rr.poster||""};recruits.unshift(nr);}});
     if((d.new_recruits||[]).length>0)renderRecruits();
 
     // 7. Match demands
@@ -2376,10 +2395,11 @@ function pollUpdates(){
     if((d.world_msgs||[]).length>0){renderWorldChat();renderChatContacts();}
 
     // 10. Friend requests — atomic rebuild, skip locally handled
-    var _newReqs=[];if(d.friend_reqs&&d.friend_reqs.length>0){d.friend_reqs.forEach(function(fr){if(!_localReqActions[fr.from_user])_newReqs.push({from:fr.from_user,message:"",time:fmtTime(fr.created_at)});});}friendRequests.length=0;_newReqs.forEach(function(fr){friendRequests.push(fr);});updateFriendBadge();renderFriendsList();
-
-    // 11. Online users sync
-    if(d.online_users&&d.online_users.length>0){var _onlineSet=new Set(d.online_users);allUsers.forEach(function(u){u.online=_onlineSet.has(u.id);});updateOnlineDisplay();}
+    var _newReqs=[];if(d.friend_reqs&&d.friend_reqs.length>0){d.friend_reqs.forEach(function(fr){if(!_localReqActions[fr.from_user])_newReqs.push({from:fr.from_user,message:fr.message||"",time:fmtTime(fr.created_at)});});}friendRequests.length=0;_newReqs.forEach(function(fr){friendRequests.push(fr);});updateFriendBadge();renderFriendsList();
+    // Also sync sent requests
+    sentRequests.length=0;if(d.sent_reqs&&d.sent_reqs.length>0){d.sent_reqs.forEach(function(sr){sentRequests.push({to:sr.to_user,time:""});});}
+    // Sync friends list from DB (only if data returned)
+    if(d.my_friends&&d.my_friends.length>0){myFriends.length=0;d.my_friends.forEach(function(f){myFriends.push(f);});}
 
     // Update stats & caps
     updateLiveStats();
@@ -2407,7 +2427,7 @@ async function loadAllData(){
   if(rp.data&&rp.data.length>0){rp.data.forEach(function(p){if(!posts.find(function(x){return x.id===p.id;})){posts.unshift({id:p.id,title:p.title,category:p.category,categoryLabel:p.category_label||'其他',maker:p.author||p.maker,avatar:p.author_avatar||p.avatar,time:(function(t){var d=new Date(t);return d.toLocaleDateString('zh-CN',{month:'numeric',day:'numeric'})+' '+d.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})})(p.created_at),desc:p.content||p.desc,platform:p.platform||'all',likes:p.likes||0,comments:p.comment_count||0,tags:p.tags});}});var _maxId=0;rp.data.forEach(function(p){var _n=parseInt((p.id||'').replace(/[^0-9]/g,''));if(!isNaN(_n)&&_n>_maxId)_maxId=_n;});nextPostId=Math.max(nextPostId,_maxId+1);renderPosts();}
   // Load recruits
   var rr=await sb.from("recruits").select("*").order("created_at",{ascending:false}).limit(50);
-  if(rr.data&&rr.data.length>0){rr.data.forEach(function(r){if(!recruits.find(function(x){return x.id===r.id;})){var nr={id:r.id,title:r.title,poster:r.poster,avatar:r.poster_avatar||r.poster.slice(0,1),avatarBg:"",type:r.type||"maker",mode:r.mode||"全职",desc:r.description||r.desc||"",detail:r.detail||r.description||"",budget:r.budget||"面议",city:r.city||"",platforms:typeof r.platforms==="string"?JSON.parse(r.platforms||"[]"):(r.platforms||[]),tags:typeof r.tags==="string"?JSON.parse(r.tags||"[]"):(r.tags||[]),status:r.status||"招募中",statusClass:r.status_class||"active-recruit"};recruits.unshift(nr);}});}
+  if(rr.data&&rr.data.length>0){rr.data.forEach(function(r){if(!recruits.find(function(x){return x.id===r.id;})){var nr={id:r.id,title:r.title,poster:r.poster,avatar:r.poster_avatar||r.poster.slice(0,1),avatarBg:"",type:r.type||"maker",mode:r.mode||"全职",desc:r.description||r.desc||"",detail:r.detail||r.description||"",budget:r.budget||"面议",city:r.city||"",platforms:typeof r.platforms==="string"?JSON.parse(r.platforms||"[]"):(r.platforms||[]),tags:typeof r.tags==="string"?JSON.parse(r.tags||"[]"):(r.tags||[]),status:r.status||"招募中",statusClass:r.status_class||"active-recruit",postedBy:r.posted_by||r.poster||""};recruits.unshift(nr);}});}
   // Load local demands
   var rl=await sb.from("local_demands").select("*").order("created_at",{ascending:false}).limit(50);
   if(rl.data&&rl.data.length>0){localStorage.setItem("creatorhub_local_demands",JSON.stringify(rl.data));}
@@ -2428,14 +2448,17 @@ async function loadAllData(){
     });
     renderChatContacts();
   }
-    var rpro=await sb.from("profiles").select("*");var _onlineCutoff=Date.now()-120000;if(rpro.data&&rpro.data.length>0){allUsers.length=0;rpro.data.forEach(function(p){var _isOnline=p.last_seen?new Date(p.last_seen).getTime()>_onlineCutoff:false;allUsers.push({id:p.username||p.id,name:p.username||"",avatar:(p.avatar_text||p.username||"?").slice(0,1),avatarBg:"",role:p.role||"creator",roleLabel:p.role_label||"",online:_isOnline,desc:p.bio||"",platforms:[],tags:[],followers:p.level?String.fromCharCode(76,118,46)+p.level:""});});}
+    var rpro=await sb.from("profiles").select("*");if(rpro.data&&rpro.data.length>0){allUsers.length=0;rpro.data.forEach(function(p){allUsers.push({id:p.username||p.id,name:p.username||"",avatar:(p.avatar_text||p.username||"?").slice(0,1),avatarBg:"",role:p.role||"creator",roleLabel:p.role_label||"",online:false,desc:p.bio||"",platforms:[],tags:[],followers:p.level?String.fromCharCode(76,118,46)+p.level:""});});}
   var rmd=await sb.from("match_demands").select("*").order("created_at",{ascending:false}).limit(50);if(rmd.data&&rmd.data.length>0){rmd.data.forEach(function(md){var arr=md.role==="brand"?brandSeekingData:creatorSeekingData;if(!arr.find(function(x){return x.id===md.id;})){var nmd2={id:md.id,title:md.description?md.description.slice(0,30):"",budget:md.budget||"面议",desc:md.description||"",platforms:typeof md.platforms==="string"?JSON.parse(md.platforms||"[]"):(md.platforms||[]),tags:[],detail:md.description||"",avatar:md.poster?md.poster.slice(0,1):"?",avatarBg:""};if(md.role==="brand"){nmd2.brand=md.poster;}else{nmd2.creator=md.poster;}arr.unshift(nmd2);}});}
   // Load my likes
   var rpl=await sb.from("post_likes").select("post_id").eq("username",myProfile.name);
   _myLikes={};if(rpl.data&&rpl.data.length>0){rpl.data.forEach(function(l){_myLikes[l.post_id]=true;});}
-  var rfr=await sb.from("friend_requests").select("*").eq("to_user",myProfile.name).eq("status","pending");var _newReqs=[];if(rfr.data&&rfr.data.length>0){rfr.data.forEach(function(fr){if(!_localReqActions[fr.from_user])_newReqs.push({from:fr.from_user,message:"",time:fmtTime(fr.created_at)});});}friendRequests.length=0;_newReqs.forEach(function(fr){friendRequests.push(fr);});
+  var rfr=await sb.from("friend_requests").select("*").eq("to_user",myProfile.name).eq("status","pending");var _newReqs=[];if(rfr.data&&rfr.data.length>0){rfr.data.forEach(function(fr){if(!_localReqActions[fr.from_user])_newReqs.push({from:fr.from_user,message:fr.message||"",time:fmtTime(fr.created_at)});});}friendRequests.length=0;_newReqs.forEach(function(fr){friendRequests.push(fr);});
   var rsf=await sb.from("friend_requests").select("to_user").eq("from_user",myProfile.name).eq("status","pending");if(rsf.data&&rsf.data.length>0){sentRequests.length=0;rsf.data.forEach(function(sr){sentRequests.push({to:sr.to_user,time:""});});}
   var rwm=await sb.from("world_messages").select("*").order("created_at",{ascending:false}).limit(50);if(rwm.data&&rwm.data.length>0){rwm.data.reverse().forEach(function(wm){if(!worldMessages.find(function(x){return x.id===wm.id;})){var _wmm={id:wm.id,sender:wm.sender,senderAvatar:wm.sender_avatar||wm.sender.slice(0,1),text:wm.content,time:fmtTime(wm.created_at)};worldMessages.push(_wmm);worldChat.push({from:wm.sender,text:wm.content,time:fmtTime(wm.created_at)});}});}
+  // Load item comments for recruits/matches/local
+  var ric=await sb.from("item_comments").select("*").order("created_at",{ascending:true}).limit(200);
+  itemComments={};if(ric.data&&ric.data.length>0){ric.data.forEach(function(c){var key=c.item_type+':'+c.item_id;if(!itemComments[key])itemComments[key]=[];itemComments[key].push({author:c.author,text:c.content,time:fmtTime(c.created_at)});});}
 sessionStorage.setItem("_poll_since",Date.now()-10000);
   updateLiveStats();
     renderRecruits();
@@ -2456,10 +2479,6 @@ function updateLiveStats(){
   var pc=posts.length;
   [["homeStatCreators",cc],["homeStatRecruits",rc],["homeStatMatches",mc],["homeStatPosts",pc],["sqStatCreators",cc],["sqStatRecruits",rc],["sqStatMatches",mc],["sqStatPosts",pc]].forEach(function(s){var el=document.getElementById(s[0]);if(el)el.textContent=s[1]||"0";});
 }
-function updateOnlineDisplay(){
-  var _online=allUsers.filter(function(u){return u.online;}).length;
-  var el=document.getElementById('onlineCount');if(el)el.textContent=_online||"0";
-  var row=document.getElementById('onlineRow');if(row){var _onlineUsers=allUsers.filter(function(u){return u.online;}).slice(0,8);row.innerHTML='<span style="font-size:15px;color:rgba(45,45,45,.5);margin-right:4px;">🟢 在线('+_online+'人)：</span>'+(_onlineUsers.length>0?_onlineUsers.map(function(u){return '<span class="online-chip" onclick="switchTab(\'friends\');setTimeout(function(){showFriendProfile(\''+u.id+'\');},300)">'+escapeHtml(u.name)+'</span>';}).join(''):'<span style="color:rgba(45,45,45,.4);">暂无在线用户</span>');}}
 // ========================================
 // AVATAR SYSTEM
 // ========================================
@@ -2644,6 +2663,43 @@ function openMatchMsg(e,name,role){
 function closeMatchMsg(){
   document.getElementById('msgDialog').classList.remove('show');
 }
+
+// Friend request message dialog
+var _friendReqTarget = '';
+function openFriendReqDialog(uid, sourceName) {
+  console.log('openFriendReqDialog called', uid, sourceName);
+  if (uid === currentUser || uid === myProfile.name) { showToast('不能加自己为好友'); return; }
+  if (myFriends.includes(uid)) { showToast('你们已经是好友了！'); return; }
+  if (sentRequests.some(function(s){return s.to===uid;})) { showToast('已经发送过好友请求了，等待对方回应'); return; }
+  if (friendRequests.some(function(r){return r.from===uid;})) { showToast('对方已经向你发送了好友请求，请直接接受'); return; }
+  _friendReqTarget = uid;
+  var user = allUsers.find(function(u){return u.id===uid;});
+  var displayName = sourceName || (user ? user.name : uid);
+  var dlg = document.getElementById('friendReqDialog');
+  if (!dlg) { console.error('friendReqDialog element not found in DOM'); showToast('弹窗加载失败，请刷新页面'); return; }
+  document.getElementById('friendReqTarget').textContent = displayName;
+  document.getElementById('friendReqInput').value = '';
+  dlg.classList.add('show');
+  console.log('friendReqDialog should be visible now');
+  setTimeout(function(){ var inp=document.getElementById('friendReqInput');if(inp)inp.focus(); },200);
+}
+function closeFriendReqDialog(){
+  document.getElementById('friendReqDialog').classList.remove('show');
+  _friendReqTarget = '';
+}
+function confirmFriendReq(){
+  var msg = document.getElementById('friendReqInput').value.trim();
+  if (!msg) { showToast('请填写加好友的来意，让对方知道你是谁'); return; }
+  var uid = _friendReqTarget;
+  closeFriendReqDialog();
+  var user = allUsers.find(function(u){return u.id===uid;});
+  sentRequests.push({to:uid,time:'刚刚'});
+  sb.from("friend_requests").upsert({from_user:myProfile.name,to_user:uid,status:"pending",message:msg},{onConflict:"from_user,to_user"}).then(function(r){if(r.error)console.error("Friend request failed:",r.error);});
+  deliverNotification(uid,'👥 好友请求：'+msg,'好友请求');
+  renderFriendsList();
+  if (user) showFriendProfile(uid);
+  showToast('已向 '+(user?user.name:uid)+' 发送好友请求，对方将收到你的来意 💌');
+}
 function sendMatchMsg(){
   var msg = document.getElementById('msgDialogInput').value.trim();
   if(!msg){ showToast('请写一段留言');return; }
@@ -2800,11 +2856,7 @@ function initHomepage() {
       else el.textContent=t.toLocaleString();
     }
     requestAnimationFrame(tick);
-  });
-
-  updateOnlineDisplay();
-
-  document.querySelectorAll(".home-feat-card,.home-path-card,.home-stats-bar").forEach(function(el){
+  });document.querySelectorAll(".home-feat-card,.home-path-card,.home-stats-bar").forEach(function(el){
     if(el._revealed)return;
     el._revealed=true;
     el.classList.add("anim-fade-up");
@@ -2946,7 +2998,7 @@ function renderWorldChat() {
     var avatarLetter = m.from === '系统' ? '🤖' : m.from.slice(0,1);
     return '<div class="msg-bubble ' + (isMe ? 'mine' : 'theirs') + '" style="max-width:80%;">' +
       '<div style="font-size:12px;color:rgba(45,45,45,.5);margin-bottom:2px;">' +
-      (isMe ? '' : '<span style="font-weight:700;">' + escapeHtml(m.from) + '</span> · ') + m.time +
+      (isMe ? '' : '<span style="font-weight:700;cursor:pointer;text-decoration:underline;" onclick="event.stopPropagation();showFriendProfile(\''+m.from+'\')">' + escapeHtml(m.from) + '</span> · ') + m.time +
       '</div>' + escapeHtml(m.text) + '</div>';
   }).join('');
   container.scrollTop = container.scrollHeight;
@@ -2977,7 +3029,7 @@ function selectContact(id) {
   // Update chat header
   document.getElementById('chatAvatar').textContent = activeContact.avatar;
   document.getElementById('chatAvatar').style.background = activeContact.avatarBg ? '' : 'var(--avatar)';
-  document.getElementById('chatName').textContent = activeContact.name;
+  var _cn=document.getElementById('chatName');_cn.textContent=activeContact.name;_cn.style.cursor='pointer';_cn.style.textDecoration='underline';_cn.onclick=function(){showFriendProfile(activeContact.name);};
   const platformTag = document.getElementById('chatPlatformTag');
   if (activeContact.platform !== 'all') {
     platformTag.innerHTML = platformTagHtml(activeContact.platform);
@@ -3130,10 +3182,15 @@ document.addEventListener('keydown', function(e){
   if (e.key === 'Enter' && e.ctrlKey && document.activeElement === document.getElementById('msgDialogInput')) {
     e.preventDefault(); sendMatchMsg();
   }
+  // Enter in friend request textarea (Ctrl+Enter to send)
+  if (e.key === 'Enter' && e.ctrlKey && document.activeElement === document.getElementById('friendReqInput')) {
+    e.preventDefault(); confirmFriendReq();
+  }
   // Escape closes dialogs
   if (e.key === 'Escape') {
     closeDrawer();
     closeMatchMsg();
+    closeFriendReqDialog();
   }
 });
 
@@ -3149,40 +3206,62 @@ handleTopbarWrap();
 // ========================================
 // RECRUIT
 // ========================================
-function renderRecruits(filter = 'all') {
+function renderRecruits(filter) {
+  filter = filter || 'all';
   track('recruit_view',{filter:filter});
-  let items = filter === 'all' ? recruits : recruits.filter(r => {
-    if (['urgent','maker','merchant','tech'].includes(filter)) return r.type === filter || r.statusClass === filter;
-    if (filter === 'all-plat') return r.platforms.length > 1;
-    return r.platforms.includes(filter);
+  var items = filter === 'all' ? recruits : recruits.filter(function(r) {
+    if (!r) return false;
+    if (['urgent','maker','merchant','tech'].indexOf(filter) >= 0) return r.type === filter || r.statusClass === filter;
+    if (filter === 'all-plat') return (r.platforms||[]).length > 1;
+    return (r.platforms||[]).indexOf(filter) >= 0;
   });
-  dom.recruitGrid.innerHTML = items.map((r, i) => `
-    <article class="card" style="--tilt:${randTilt(i)};--tape:${randTape(i)}">
-      <div class="card-top">
-        <span class="card-status ${r.statusClass}">${r.status}</span>
-        <span class="card-no">#${String(i+1).padStart(2,'0')}</span>
-      </div>
-      <h3>${escapeHtml(r.title)}</h3>
-      <div class="budget">${escapeHtml(r.budget)}${r.mode ? ' · '+escapeHtml(r.mode) : ''}${r.city ? ' · 📍'+escapeHtml(r.city) : ''}</div>
-      <p class="desc">${escapeHtml(r.desc)}</p>
-      <div class="platform-tags">${r.platforms.map(platformTagHtml).join('')}</div>
-      <div class="tags">${r.tags.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>
-      <div class="card-foot">
-        <div class="maker">
-          <span class="avatar ${r.avatarBg}">${r.avatar}</span>
-          <span>${escapeHtml(r.poster)}</span>
-        </div>
-        <button class="btn" onclick="event.stopPropagation();openRecruitDrawer('${r.id}')">查看详情</button>
-        <button class="mini-btn-link" onclick="event.stopPropagation();quickAddFriend('${jsEscape(r.poster)}')" title="加好友">👥</button>
-        ${isAdmin ? '<button class="mini-btn reject" onclick="event.stopPropagation();deleteRecruit(\'' + r.id + '\')" title="删除">🗑</button>' : ''}
-      </div>
-    </article>
-  `).join('');
+  if (!dom.recruitGrid) return;
+  if (!items.length) {
+    dom.recruitGrid.innerHTML = '<p style="text-align:center;padding:40px;color:rgba(45,45,45,.4);">暂无招募信息<br><small>点击右下角 + 发布第一条招募吧！</small></p>';
+    return;
+  }
+  var html = '';
+  for (var i = 0; i < items.length; i++) {
+    var r = items[i];
+    var companyName = (r && r.poster) || '';  // 公司/品牌名
+    var realPoster = (r && r.postedBy) || companyName || '匿名用户';  // 实际发帖人
+    var posterAvatar = (realPoster||'?').slice(0,1);
+    var isMine = (r.postedBy === myProfile.name || r.poster === myProfile.name);
+    var plats = (r && r.platforms) || [];
+    if (typeof plats === 'string') { try { plats = JSON.parse(plats); } catch(_) { plats = []; } }
+    var tgs = (r && r.tags) || [];
+    if (typeof tgs === 'string') { try { tgs = JSON.parse(tgs); } catch(_) { tgs = []; } }
+    html += '<article class="card" style="--tilt:' + randTilt(i) + ';--tape:' + randTape(i) + '">';
+    html += '<div class="card-top">';
+    html += '<span class="card-status ' + (r.statusClass||'') + '">' + escapeHtml(r.status||'') + '</span>';
+    html += '<span class="card-no">#' + String(i+1).padStart(2,'0') + '</span>';
+    html += '</div>';
+    html += '<h3>' + escapeHtml(r.title||'') + '</h3>';
+    if (companyName) { html += '<div style="font-size:13px;color:rgba(45,45,45,.5);margin-bottom:2px;">🏢 ' + escapeHtml(companyName) + '</div>'; }
+    html += '<div class="budget">' + escapeHtml(r.budget||'') + (r.mode ? ' · ' + escapeHtml(r.mode) : '') + (r.city ? ' · 📍' + escapeHtml(r.city) : '') + '</div>';
+    html += '<p class="desc">' + escapeHtml(r.desc||'') + '</p>';
+    html += '<div class="platform-tags">' + plats.map(platformTagHtml).join('') + '</div>';
+    html += '<div class="tags">' + tgs.map(function(t){ return '<span class="tag">' + escapeHtml(t) + '</span>'; }).join('') + '</div>';
+    html += '<div class="card-foot">';
+    html += '<div class="maker">';
+    html += '<span class="avatar ' + (r.avatarBg||'') + '">' + posterAvatar + '</span>';
+    html += '<span onclick="event.stopPropagation();showFriendProfile(\'' + realPoster + '\')" style="cursor:pointer;text-decoration:underline;font-weight:600;color:var(--red);" title="点击查看发布者主页">📝 ' + escapeHtml(realPoster) + '</span>';
+    html += '</div>';
+    html += '<button class="btn" onclick="event.stopPropagation();openRecruitDrawer(\'' + r.id + '\')">查看详情</button>';
+    html += '<button class="mini-btn-link" onclick="event.stopPropagation();quickAddFriend(\'' + jsEscape(realPoster) + '\')" title="加好友">👥</button>';
+    if (isMine || isAdmin) { html += '<button class="mini-btn reject" onclick="event.stopPropagation();deleteRecruit(\'' + r.id + '\')" title="删除">🗑</button>'; }
+    html += '</div>';
+    html += '</article>';
+  }
+  dom.recruitGrid.innerHTML = html;
 }
 
 function openRecruitDrawer(id) {
   const r = recruits.find(x => x.id === id);
   if (!r) return;
+  // Store current item for comment
+  window._currentItemId = id;
+  window._currentItemType = 'recruit';
   // Reset row labels for recruit mode
   document.querySelectorAll('.drawer-row h3')[0].textContent = '详细需求';
   document.querySelectorAll('.drawer-row h3')[1].textContent = '预算/报酬';
@@ -3195,15 +3274,23 @@ function openRecruitDrawer(id) {
   document.getElementById('drawerDesc').textContent = r.desc;
   document.getElementById('drawerDetail').textContent = r.detail;
   document.getElementById('drawerBudget').textContent = r.budget;
-  document.getElementById('drawerPoster').textContent = r.poster;
+  var realPoster = r.postedBy || r.poster || '匿名用户';
+  var _dp=document.getElementById('drawerPoster');_dp.innerHTML='🏢 '+escapeHtml(r.poster||'')+'<br><span style="font-weight:600;color:var(--red);cursor:pointer;text-decoration:underline;" onclick="closeDrawer();showFriendProfile(\''+realPoster+'\')">📝 发布者：'+escapeHtml(realPoster)+'</span>';
   document.getElementById('drawerPlatforms').innerHTML = r.platforms.map(platformTagHtml).join('');
-  document.getElementById('drawerTags').innerHTML = r.tags.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('');
+  document.getElementById('drawerTags').innerHTML = r.tags.map(t => '<span class=\"tag\">'+escapeHtml(t)+'</span>').join('');
+  // Render comments
+  var ckey = 'recruit:' + id;
+  var cmts = itemComments[ckey] || [];
+  var clist = document.getElementById('drawerCommentsList');
+  clist.innerHTML = cmts.length === 0 ? '<p style=\"color:rgba(45,45,45,.4);font-size:14px;\">暂无留言，来说两句吧</p>' :
+    cmts.map(function(c){ return '<div style=\"margin:6px 0;padding:6px 10px;background:var(--gray);border-radius:8px;\"><b>'+escapeHtml(c.author)+'</b> <span style=\"font-size:12px;color:rgba(45,45,45,.4);\">'+c.time+'</span><p style=\"margin:4px 0 0;font-size:14px;\">'+escapeHtml(c.text)+'</p></div>'; }).join('');
   // Restore recruit actions
   document.getElementById('drawerActions').innerHTML =
     '<button class="btn" onclick="deliverNotification(\''+escapeHtml(r.poster)+'\',\'💼 招募意向：对「'+escapeHtml(r.title)+'」感兴趣\',\'招募\');showToast(\'已发送意向！对方将在聊天中收到通知 💌\');addXP(30,\'招募意向\');" style="font-size:18px;">🤝 我有意向</button>' +
     '<button class="btn secondary" onclick="showToast(\'已复制联系方式\')">📋 复制联系方式</button>';
   currentPostId = null;
   openDrawer();
+  setTimeout(function(){ var inp=document.getElementById('drawerCommentInput');if(inp){inp.onkeydown=function(e){if(e.key==='Enter'){e.preventDefault();addItemComment();}};} },300);
 }
 
 function deleteRecruit(rid){
@@ -3229,7 +3316,7 @@ function publishRecruit() {
   var fb = document.getElementById('rfFeedback');
   if (!title || !company || !desc) { fb.textContent = '标题、公司和描述不能为空！'; fb.style.color = 'var(--red)'; return; }
   var modeLabels = { fulltime: '全职', parttime: '兼职', project: '项目制', intern: '实习' };
-  var _rid="r"+Date.now();sb.from("recruits").insert({id:_rid,title:title,poster:company,poster_avatar:company.slice(0,1),type:type,mode:modeLabels[mode]||mode,description:desc,detail:desc,budget:budget||"面议",city:city,platforms:platforms,tags:[],status:"招募中",status_class:"active-recruit"}).then(function(r){if(r.error)console.error("Recruit insert failed:",r.error);});
+  var _rid="r"+Date.now();sb.from("recruits").insert({id:_rid,title:title,poster:company,poster_avatar:company.slice(0,1),type:type,mode:modeLabels[mode]||mode,description:desc,detail:desc,budget:budget||"面议",city:city,platforms:platforms,tags:[],status:"招募中",status_class:"active-recruit",posted_by:myProfile.name}).then(function(r){if(r.error)console.error("Recruit insert failed:",r.error);});
 recruits.unshift({
     id: _rid,
     title: title,
@@ -3246,9 +3333,10 @@ recruits.unshift({
     tags: [type === 'urgent' ? '急招' : type === 'maker' ? '达人' : type === 'merchant' ? '商家' : '技能', modeLabels[mode] || ''],
     status: '招募中',
     statusClass: 'active-recruit',
-    postedAt: Date.now()
-  });
-  // Clear form
+    postedAt: Date.now(),
+	    postedBy: myProfile.name
+	  });
+	  // Clear form
   document.getElementById('rfTitle').value = ''; document.getElementById('rfCompany').value = ''; document.getElementById('rfDesc').value = ''; document.getElementById('rfBudget').value = ''; document.getElementById('rfCity').value = '';
   track('recruit_publish',{type:type,mode:mode,city:city,platforms_count:platforms.length});
   toggleRecruitForm();
@@ -3293,49 +3381,51 @@ function renderMatch() {
     document.getElementById('matchColumns').style.gridTemplateColumns = '1fr';
   }
 
-  dom.brandSeeking.innerHTML = brandSeekingData.map((b, i) => `
-    <article class="card" style="--tilt:${randTilt(i)};--tape:${randTape(i)}">
-      <div class="card-top">
-        <span class="card-status seeking">品牌方</span>
-      </div>
-      <h3>${escapeHtml(b.title)}</h3>
-      <div class="budget">${escapeHtml(b.budget)}</div>
-      <p class="desc">${escapeHtml(b.desc)}</p>
-      <div class="platform-tags">${b.platforms.map(platformTagHtml).join('')}</div>
-      <div class="tags">${b.tags.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>
-      <div class="card-foot">
-        <div class="maker">
-          <span class="avatar ${b.avatarBg}">${b.avatar}</span>
-          <span>${escapeHtml(b.brand)}</span>
-        </div>
-        <button class="btn" onclick="event.stopPropagation();openMatchMsg(event,'${jsEscape(b.brand)}','品牌方')">我想合作</button>
-        <button class="mini-btn-link" onclick="event.stopPropagation();quickAddFriend('${jsEscape(b.brand)}')" title="加好友">👥</button>
-        ${b.brand === myProfile.name || isAdmin ? '<button class="mini-btn reject" onclick="event.stopPropagation();deleteMatch(\'' + b.id + '\',\'brand\')" title="删除">🗑</button>' : ''}
-      </div>
-    </article>
-  `).join('');
+  var bhtml = '';
+  for (var bi = 0; bi < brandSeekingData.length; bi++) {
+    var b = brandSeekingData[bi];
+    var bname = (b && b.brand) || '匿名用户';
+    var bavatar = (b && b.avatar) || bname.slice(0,1);
+    bhtml += '<article class="card" style="--tilt:' + randTilt(bi) + ';--tape:' + randTape(bi) + '">';
+    bhtml += '<div class="card-top"><span class="card-status seeking">品牌方</span></div>';
+    bhtml += '<h3>' + escapeHtml(b.title||'') + '</h3>';
+    bhtml += '<div class="budget">' + escapeHtml(b.budget||'') + '</div>';
+    bhtml += '<p class="desc">' + escapeHtml(b.desc||'') + '</p>';
+    bhtml += '<div class="platform-tags">' + (b.platforms||[]).map(platformTagHtml).join('') + '</div>';
+    bhtml += '<div class="tags">' + (b.tags||[]).map(function(t){ return '<span class="tag">' + escapeHtml(t) + '</span>'; }).join('') + '</div>';
+    bhtml += '<div class="card-foot">';
+    bhtml += '<div class="maker"><span class="avatar ' + (b.avatarBg||'') + '">' + bavatar + '</span>';
+    bhtml += '<span onclick="event.stopPropagation();showFriendProfile(\'' + b.brand + '\')" style="cursor:pointer;text-decoration:underline;font-weight:600;color:var(--red);" title="点击查看发布者主页">📝 ' + escapeHtml(bname) + '</span>';
+    bhtml += '</div>';
+    bhtml += '<button class="btn" onclick="event.stopPropagation();openMatchMsg(event,\'' + jsEscape(b.brand) + '\',\'品牌方\')">我想合作</button>';
+    bhtml += '<button class="mini-btn-link" onclick="event.stopPropagation();quickAddFriend(\'' + jsEscape(b.brand) + '\')" title="加好友">👥</button>';
+    if (b.brand === myProfile.name || isAdmin) { bhtml += '<button class="mini-btn reject" onclick="event.stopPropagation();deleteMatch(\'' + b.id + '\',\'brand\')" title="删除">🗑</button>'; }
+    bhtml += '</div></article>';
+  }
+  dom.brandSeeking.innerHTML = bhtml;
 
-  dom.creatorSeeking.innerHTML = creatorSeekingData.map((c, i) => `
-    <article class="card" style="--tilt:${randTilt(i)};--tape:${randTape(i)}">
-      <div class="card-top">
-        <span class="card-status seeking">达人</span>
-      </div>
-      <h3>${escapeHtml(c.title)}</h3>
-      <div class="budget">${escapeHtml(c.budget)}</div>
-      <p class="desc">${escapeHtml(c.desc)}</p>
-      <div class="platform-tags">${c.platforms.map(platformTagHtml).join('')}</div>
-      <div class="tags">${c.tags.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>
-      <div class="card-foot">
-        <div class="maker">
-          <span class="avatar ${c.avatarBg}">${c.avatar}</span>
-          <span>${escapeHtml(c.creator)}</span>
-        </div>
-        <button class="btn" onclick="event.stopPropagation();openMatchMsg(event,'${jsEscape(c.creator)}','达人')">联系TA</button>
-        <button class="mini-btn-link" onclick="event.stopPropagation();quickAddFriend('${jsEscape(c.creator)}')" title="加好友">👥</button>
-        ${c.creator === myProfile.name || isAdmin ? '<button class="mini-btn reject" onclick="event.stopPropagation();deleteMatch(\'' + c.id + '\',\'creator\')" title="删除">🗑</button>' : ''}
-      </div>
-    </article>
-  `).join('');
+  var chtml = '';
+  for (var ci = 0; ci < creatorSeekingData.length; ci++) {
+    var c = creatorSeekingData[ci];
+    var cname = (c && c.creator) || '匿名用户';
+    var cavatar = (c && c.avatar) || cname.slice(0,1);
+    chtml += '<article class="card" style="--tilt:' + randTilt(ci) + ';--tape:' + randTape(ci) + '">';
+    chtml += '<div class="card-top"><span class="card-status seeking">达人</span></div>';
+    chtml += '<h3>' + escapeHtml(c.title||'') + '</h3>';
+    chtml += '<div class="budget">' + escapeHtml(c.budget||'') + '</div>';
+    chtml += '<p class="desc">' + escapeHtml(c.desc||'') + '</p>';
+    chtml += '<div class="platform-tags">' + (c.platforms||[]).map(platformTagHtml).join('') + '</div>';
+    chtml += '<div class="tags">' + (c.tags||[]).map(function(t){ return '<span class="tag">' + escapeHtml(t) + '</span>'; }).join('') + '</div>';
+    chtml += '<div class="card-foot">';
+    chtml += '<div class="maker"><span class="avatar ' + (c.avatarBg||'') + '">' + cavatar + '</span>';
+    chtml += '<span onclick="event.stopPropagation();showFriendProfile(\'' + c.creator + '\')" style="cursor:pointer;text-decoration:underline;font-weight:600;color:var(--red);" title="点击查看发布者主页">📝 ' + escapeHtml(cname) + '</span>';
+    chtml += '</div>';
+    chtml += '<button class="btn" onclick="event.stopPropagation();openMatchMsg(event,\'' + jsEscape(c.creator) + '\',\'达人\')">联系TA</button>';
+    chtml += '<button class="mini-btn-link" onclick="event.stopPropagation();quickAddFriend(\'' + jsEscape(c.creator) + '\')" title="加好友">👥</button>';
+    if (c.creator === myProfile.name || isAdmin) { chtml += '<button class="mini-btn reject" onclick="event.stopPropagation();deleteMatch(\'' + c.id + '\',\'creator\')" title="删除">🗑</button>'; }
+    chtml += '</div></article>';
+  }
+  dom.creatorSeeking.innerHTML = chtml;
   track('match_view',{view_mode:matchFilter});
 }
 
@@ -3385,7 +3475,7 @@ function renderLocalMatch() {
   var catLabels={food:'🍔 餐饮',beauty:'💆 美容',fitness:'🏋 健身',entertainment:'🎬 娱乐',hotel:'🏨 酒店',retail:'🛒 零售',other:'📌 其他'};
   var grid=dom.localDemandsGrid;
   if(!items.length){grid.innerHTML='<p style="color:rgba(45,45,45,.4);padding:20px;text-align:center;">该筛选条件下暂无本地需求<br><small>试试切换城市或品类，或者发布第一条需求！</small></p>';}
-  else {grid.innerHTML=items.map(function(d,i){var isMine=d.postedBy===currentUser;return '<article class="card" style="--tilt:'+randTilt(i)+';--tape:'+randTape(i)+'"><div class="card-top"><span class="card-status seeking">'+(catLabels[d.category]||d.category)+'</span></div><h3>'+escapeHtml(d.businessName)+'</h3><p style="font-size:14px;color:rgba(45,45,45,.6);">📍 '+escapeHtml(d.city)+(d.district?'·'+escapeHtml(d.district):'')+'</p><p style="font-weight:600;">'+escapeHtml(d.title)+'</p><p class="desc">'+escapeHtml(d.description)+'</p><div class="budget">'+escapeHtml(d.budget)+'</div><p style="font-size:13px;color:rgba(45,45,45,.5);">要求：'+escapeHtml(d.requirements||'无特殊要求')+'</p><div class="card-foot"><button class="btn" onclick="localMatchIntent(\''+d.id+'\')">🤝 我要接</button>'+'<span style="font-size:13px;color:rgba(45,45,45,.4);margin-left:8px;">'+escapeHtml(d.contact)+'</span>'+(isMine||isAdmin?'<button class="mini-btn reject" onclick="event.stopPropagation();deleteLocalDemand(\''+d.id+'\')" title="删除">🗑</button>':'')+'</div></article>';}).join('');}
+  else {grid.innerHTML=items.map(function(d,i){var isMine=d.postedBy===currentUser;var posterName=d.poster||d.postedBy||'匿名用户';return '<article class="card" style="--tilt:'+randTilt(i)+';--tape:'+randTape(i)+'"><div class="card-top"><span class="card-status seeking">'+(catLabels[d.category]||d.category)+'</span></div><h3>'+escapeHtml(d.businessName||d.title)+'</h3><p style="font-size:14px;color:rgba(45,45,45,.6);">📍 '+escapeHtml(d.city)+(d.district?'·'+escapeHtml(d.district):'')+'</p><p style="font-weight:600;">'+escapeHtml(d.title)+'</p><p class="desc">'+escapeHtml(d.description||'')+'</p><div class="budget">'+escapeHtml(d.budget||'面议')+'</div><p style="font-size:13px;color:rgba(45,45,45,.5);">要求：'+escapeHtml(d.requirements||'无特殊要求')+'</p><div class="card-foot"><div class="maker"><span class="avatar">'+(posterName.slice(0,1))+'</span><span onclick="event.stopPropagation();showFriendProfile(\''+posterName+'\')" style="cursor:pointer;text-decoration:underline;font-weight:600;color:var(--red);" title="点击查看发布者主页">📝 '+escapeHtml(posterName)+'</span></div><button class="btn" onclick="localMatchIntent(\''+d.id+'\')">🤝 我要接</button>'+'<span style="font-size:13px;color:rgba(45,45,45,.4);margin-left:8px;">'+escapeHtml(d.contact||'')+'</span>'+(isMine||isAdmin?'<button class="mini-btn reject" onclick="event.stopPropagation();deleteLocalDemand(\''+d.id+'\')" title="删除">🗑</button>':'')+'</div></article>';}).join('');}
 
   // Local creators recommendations
   var creators=allUsers.filter(function(u){return u.role==='creator'&&(!cityFilter||(u.city&&u.city.indexOf(cityFilter)!==-1));}).slice(0,6);
@@ -3460,28 +3550,46 @@ function createPost() {
   });
 }
 
-function _renderPostsCore(filter = 'all') {
-  let items = filter === 'all' ? posts : posts.filter(p => p.category === filter);
-  dom.postGrid.innerHTML = items.map((p, i) => `
-    <article class="post-card" style="--tilt:${randTilt(i)};--tape:${randTape(i)};cursor:pointer;" onclick="openPostDetail('${p.id}')">
-      <span class="post-category ${p.category}">${p.categoryLabel}</span>
-      <h3>${escapeHtml(p.title)}</h3>
-      ${p.platform && p.platform !== 'all' ? `<div class="platform-tags" style="margin:6px 0;">${platformTagHtml(p.platform)}</div>` : ''}
-      <p>${escapeHtml(p.desc)}</p>
-      <div class="post-stats">
-        <span onclick="event.stopPropagation();likePost('${p.id}')" style="cursor:pointer;" title="点赞">👍 ${p.likes}</span>
-        <span>💬 ${(postComments[p.id]||[]).length||p.comments||0}</span>
-      </div>
-      <div class="card-foot">
-        <div class="maker">
-          <span class="avatar">${p.avatar}</span>
-          <span>${escapeHtml(p.maker)}</span>
-        </div>
-        <span style="font-size:14px;color:rgba(45,45,45,.5);">${p.time}</span>
-        ${p.maker === '我' || p.maker === myProfile.name || isAdmin ? '<button class="mini-btn reject" onclick="event.stopPropagation();deletePost(\'' + p.id + '\')" title="删除">🗑</button>' : ''}
-      </div>
-    </article>
-  `).join('');
+function _renderPostsCore(filter) {
+  try {
+  filter = filter || 'all';
+  var items = filter === 'all' ? posts : posts.filter(function(p){return p.category === filter;});
+  if (!dom.postGrid) return;
+  var html = '';
+  for (var i = 0; i < items.length; i++) {
+    var p = items[i];
+    var makerName = (p && p.maker) || '匿名用户';
+    var makerAvatar = (p && p.avatar) || makerName.slice(0,1);
+    var isMine = p && p.maker === (myProfile && myProfile.name);
+    var isFriend = myFriends && myFriends.indexOf(p.maker) >= 0;
+    html += '<article class="post-card" style="--tilt:' + randTilt(i) + ';--tape:' + randTape(i) + ';cursor:pointer;" onclick="openPostDetail(\'' + p.id + '\')">';
+    html += '<span class="post-category ' + (p.category||'') + '">' + escapeHtml(p.categoryLabel||'') + '</span>';
+    html += '<h3>' + escapeHtml(p.title||'') + '</h3>';
+    if (p.platform && p.platform !== 'all') { html += '<div class="platform-tags" style="margin:6px 0;">' + platformTagHtml(p.platform) + '</div>'; }
+    html += '<p>' + escapeHtml(p.desc||'') + '</p>';
+    html += '<div class="post-stats">';
+    html += '<span onclick="event.stopPropagation();likePost(\'' + p.id + '\')" style="cursor:pointer;" title="点赞">👍 ' + (p.likes||0) + '</span>';
+    html += '<span>💬 ' + ((postComments[p.id]||[]).length||p.comments||0) + '</span>';
+    html += '</div>';
+    html += '<div class="card-foot">';
+    html += '<div class="maker">';
+    html += '<span class="avatar">' + makerAvatar + '</span>';
+    html += '<span onclick="event.stopPropagation();showFriendProfile(\'' + p.maker + '\')" style="cursor:pointer;text-decoration:underline;font-weight:600;color:var(--red);" title="点击查看发布者主页">📝 ' + escapeHtml(makerName) + '</span>';
+    html += '</div>';
+    html += '<span style="font-size:13px;color:rgba(45,45,45,.4);">' + escapeHtml(p.time||'') + '</span>';
+    if (!isMine && p.maker) {
+      if (isFriend) {
+        html += '<button class="mini-btn msg" onclick="event.stopPropagation();chatWithFriend(\'' + p.maker + '\')" title="私聊">💬 联系TA</button>';
+      } else {
+        html += '<button class="mini-btn add" onclick="event.stopPropagation();sendFriendRequest(\'' + p.maker + '\')" title="加好友接单">👥 加好友接单</button>';
+      }
+    }
+    if (isMine || isAdmin) { html += '<button class="mini-btn reject" onclick="event.stopPropagation();deletePost(\'' + p.id + '\')" title="删除">🗑</button>'; }
+    html += '</div>';
+    html += '</article>';
+  }
+  dom.postGrid.innerHTML = html;
+  } catch(e) { console.error('_renderPostsCore error:', e); }
 }
 
 var _renderTimer=null;
@@ -3516,6 +3624,41 @@ function closeDrawer() {
   document.getElementById('overlay').classList.remove('show');
 }
 
+// Add comment to current item (recruit/match/local)
+function addItemComment() {
+  var inp = document.getElementById('drawerCommentInput');
+  if (!inp) return;
+  var text = inp.value.trim();
+  if (!text) { showToast('请输入留言内容'); return; }
+  if (!currentUser) { showToast('请先登录'); return; }
+  var itemId = window._currentItemId;
+  var itemType = window._currentItemType || 'recruit';
+  if (!itemId) return;
+  var key = itemType + ':' + itemId;
+  if (!itemComments[key]) itemComments[key] = [];
+  var now = new Date();
+  itemComments[key].push({ author: myProfile.name, text: text, time: fmtTime(now.toISOString()) });
+  // Save to Supabase
+  sb.from('item_comments').insert({ item_id: itemId, item_type: itemType, author: myProfile.name, content: text }).then(function(r) {
+    if (r.error) console.error('Item comment insert failed:', r.error);
+  });
+  inp.value = '';
+  // Re-render comments in drawer
+  var cmts = itemComments[key] || [];
+  var clist = document.getElementById('drawerCommentsList');
+  if (clist) {
+    clist.innerHTML = cmts.map(function(c) {
+      return '<div style="margin:6px 0;padding:6px 10px;background:var(--gray);border-radius:8px;"><b>' + escapeHtml(c.author) + '</b> <span style="font-size:12px;color:rgba(45,45,45,.4);">' + c.time + '</span><p style="margin:4px 0 0;font-size:14px;">' + escapeHtml(c.text) + '</p></div>';
+    }).join('');
+  }
+  showToast('留言已发送 💬');
+  addXP(5, '留言');
+  // Notify the item poster
+  var r = recruits.find(function(x) { return x.id === itemId; });
+  if (r && r.poster && r.poster !== myProfile.name) {
+    deliverNotification(r.poster, '💬 新留言：「' + text.slice(0, 40) + '」', '招募留言');
+  }
+}
 
 // ========================================
 // FRIENDS DATA & LOGIC
@@ -3623,7 +3766,7 @@ function renderFriendsList() {
           <span class="avatar" style="${avatarStyle(r.user.name)}">${r.user.avatar}</span>
           <div class="friend-item-info">
             <div class="name">${escapeHtml(r.user.name)}</div>
-            <div class="brief">${escapeHtml(r.message)} · ${r.time}</div>
+            <div class="brief">📩 ${escapeHtml(r.message || '想加你为好友')} · ${r.time}</div>
           </div>
           <div class="friend-item-actions">
             <button class="mini-btn accept" onclick="acceptRequest('${r.from}')">接受</button>
@@ -3656,54 +3799,36 @@ function renderFriendsList() {
 function showFriendProfile(uid) {
   track('profile_view',{target_user:uid,source:_currentTab});
   const user = allUsers.find(u => u.id === uid);
-  if (!user) return;
-
-  // Highlight active item
-  document.querySelectorAll('.friend-item').forEach(el => el.classList.remove('active'));
-  const item = document.querySelector(`.friend-item[data-uid="${uid}"]`);
-  if (item) item.classList.add('active');
-
+  if (!user || uid === myProfile.name) return;
   const isFriend = myFriends.includes(uid);
   const isRequested = friendRequests.some(r => r.from === uid);
-  const profileDiv = dom.friendsProfile;
-
-  profileDiv.innerHTML = `
-    <div class="friend-profile-card">
-      <div class="big-avatar ${user.online ? 'online' : ''}" style="background:${user.avatarBg || 'var(--avatar)'}">${user.avatar}</div>
-      <h3>${escapeHtml(user.name)}</h3>
-      <span class="profile-role ${user.role}">${escapeHtml(user.roleLabel)}</span>
-      <p class="profile-desc">${escapeHtml(user.desc)}</p>
-      <div class="profile-stats">
-        <div><b>${escapeHtml(user.followers)}</b><br>粉丝/关注</div>
-        <div>${user.online ? '<b style="color:var(--sage)">在线</b>' : '<b style="color:rgba(45,45,45,.4)">离线</b>'}<br>状态</div>
-      </div>
-      <div class="platform-tags" style="justify-content:center;">${user.platforms.map(platformTagHtml).join('')}</div>
-      <div class="tags" style="justify-content:center;margin-top:8px;">${user.tags.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>
-      <div class="friend-profile-actions">
-        ${isFriend ? `
-          <button class="btn" onclick="chatWithFriend('${uid}')">💬 发消息</button>
-          <button class="btn secondary" onclick="removeFriend('${uid}')">删除好友</button>
-        ` : (isRequested ? `
-          <span style="padding:10px;color:rgba(45,45,45,.5);font-size:16px;">已发送好友请求，等待对方通过</span>
-        ` : `
-          <button class="btn" onclick="sendFriendRequest('${uid}')">👥 加为好友</button>
-        `)}
-      </div>
-    </div>
-  `;
+  const isSent = sentRequests.some(s => s.to === uid);
+  var actHtml='';
+  if(isFriend){
+    actHtml='<button class="btn" onclick="chatWithFriend(\''+uid+'\');closeUserPopup();">💬 私聊</button><button class="btn secondary" onclick="removeFriend(\''+uid+'\');closeUserPopup();" style="margin-left:6px;">删除好友</button>';
+  }else if(isRequested){
+    actHtml='<button class="btn" onclick="acceptRequest(\''+uid+'\');closeUserPopup();">✅ 接受好友请求</button><button class="btn secondary" onclick="rejectRequest(\''+uid+'\');closeUserPopup();" style="margin-left:6px;">拒绝</button>';
+  }else if(isSent){
+    actHtml='<span style="padding:10px;color:rgba(45,45,45,.5);">已发送好友请求</span>';
+  }else{
+    actHtml='<button class="btn" onclick="sendFriendRequest(\''+uid+'\');closeUserPopup();">👥 加为好友</button>';
+  }
+  document.getElementById('userPopupCard').innerHTML=
+    '<button style="position:absolute;right:10px;top:8px;font-size:22px;cursor:pointer;background:none;border:none;" onclick="closeUserPopup()">×</button>'+
+    '<div class="big-avatar '+(user.online?'online':'')+'" style="background:'+(user.avatarBg||'var(--avatar)')+';width:64px;height:64px;line-height:64px;font-size:28px;margin:0 auto 8px;border-radius:50%;">'+user.avatar+'</div>'+
+    '<h3 style="margin:4px 0;">'+escapeHtml(user.name)+' '+(user.online?'<span style="color:var(--sage);font-size:12px;">●在线</span>':'<span style="color:rgba(0,0,0,.3);font-size:12px;">●离线</span>')+'</h3>'+
+    '<span class="profile-role '+user.role+'" style="display:inline-block;margin-bottom:6px;">'+escapeHtml(user.roleLabel)+'</span>'+
+    '<p style="font-size:14px;color:rgba(45,45,45,.5);margin:6px 0;">'+escapeHtml(user.desc||'这个人很懒，什么都没写')+'</p>'+
+    '<div style="margin-top:10px;">'+actHtml+'</div>';
+  document.getElementById('userPopupOverlay').style.display='flex';
+}
+function closeUserPopup(){
+  document.getElementById('userPopupOverlay').style.display='none';
 }
 
 function sendFriendRequest(uid) {
-  if (uid === currentUser || uid === myProfile.name) { showToast('不能加自己为好友'); return; }
-  if (myFriends.includes(uid)) { showToast('你们已经是好友了！'); return; }
-  if (sentRequests.some(function(s){return s.to===uid;})) { showToast('已经发送过好友请求了'); return; }
-  if (friendRequests.some(function(r){return r.from===uid;})) { showToast('对方已经向你发送了好友请求，请直接接受'); return; }
-  const user = allUsers.find(u => u.id === uid);
-  sentRequests.push({to:uid,time:'刚刚'});sb.from("friend_requests").upsert({from_user:myProfile.name,to_user:uid,status:"pending"},{onConflict:"from_user,to_user"}).then(function(r){if(r.error)console.error("Friend request failed:",r.error);});
-  deliverNotification(uid,'👥 好友请求：想加你为好友，一起交流！','好友请求');
-  renderFriendsList();
-  showFriendProfile(uid);
-  showToast('已向 '+user.name+' 发送好友请求，对方将在聊天中收到通知 💌');
+  var user = allUsers.find(function(u){return u.id===uid;});
+  openFriendReqDialog(uid, user ? user.name : uid);
 }
 
 function acceptRequest(uid) {
@@ -3715,8 +3840,8 @@ function acceptRequest(uid) {
   if (idx >= 0) friendRequests.splice(idx, 1);
   if (!myFriends.includes(uid)) myFriends.push(uid);
   // Bidirectional: both users see each other as friends
-  sb.from("friends").upsert({username:myProfile.name,friend_name:uid}).then(function(r){if(r.error)console.error("Friend add failed:",r.error);});
-  sb.from("friends").upsert({username:uid,friend_name:myProfile.name}).then(function(r){if(r.error)console.error("Friend add reverse failed:",r.error);});
+  sb.from("friends").upsert({username:myProfile.name,friend_name:uid},{onConflict:"username,friend_name"}).then(function(r){if(r.error)console.error("Friend add failed:",r.error);});
+  sb.from("friends").upsert({username:uid,friend_name:myProfile.name},{onConflict:"username,friend_name"}).then(function(r){if(r.error)console.error("Friend add reverse failed:",r.error);});
   // Mark the friend request as accepted so it disappears on the requester's side
   sb.from("friend_requests").delete().eq("from_user",uid).eq("to_user",myProfile.name).then(function(r){if(r.error)console.error("Friend request cleanup failed:",r.error);else{delete _localReqActions[uid];}});
   // Notify the requester that their request was accepted
@@ -3749,7 +3874,8 @@ function rejectRequest(uid) {
   sb.from("friend_requests").delete().eq("from_user",uid).eq("to_user",myProfile.name).then(function(r){if(r.error)console.error("Friend request reject failed:",r.error);else{delete _localReqActions[uid];}});
   updateFriendBadge();
   renderFriendsList();
-  showToast(`已拒绝 ${user.name} 的好友请求`);
+  deliverNotification(uid,'❌ 好友请求被拒绝，你可以再次发送申请','好友');
+  showToast('已拒绝 '+user.name+' 的好友请求，对方可重新申请');
 }
 
 function removeFriend(uid) {
@@ -3787,13 +3913,12 @@ function quickAddFriend(name) {
     showToast('已经发送或收到过好友请求了');
     return;
   }
-  sentRequests.push({to:user.id,time:'刚刚'});sb.from("friend_requests").upsert({from_user:myProfile.name,to_user:user.id,status:"pending"},{onConflict:"from_user,to_user"}).then(function(r){if(r.error)console.error("Friend request failed:",r.error);});
-  deliverNotification(user.id,'👥 好友请求：想加你为好友，一起交流！','好友请求');
-  showToast('已向 '+user.name+' 发送好友请求，对方将在聊天中收到通知 💌');
+  openFriendReqDialog(user.id, user.name);
 }
 
 function chatWithFriend(uid) {
   if (uid === currentUser || uid === myProfile.name) { showToast('不能和自己聊天'); return; }
+  if (!myFriends.includes(uid)) { showToast('需要先加为好友才能私聊 💬'); return; }
   const user = allUsers.find(u => u.id === uid);
   if (!user) return;
   // Find existing contact by any ID pattern or by name
@@ -3875,6 +4000,7 @@ function renderProfile() {
         <h3>${escapeHtml(p.title)}</h3>
         <p>${escapeHtml(p.desc)}</p>
         <div class="post-stats"><span onclick="event.stopPropagation();likePost('${p.id}')" style="cursor:pointer;" title="点赞">👍 ${p.likes}</span><span>💬 ${(postComments[p.id]||[]).length||p.comments||0}</span><span>${p.time}</span></div>
+        <div class="card-foot"><div class="maker"><span class="avatar">${p.avatar || (p.maker||'我').slice(0,1)}</span><span>📝 ${escapeHtml(p.maker || myProfile.name)}</span></div></div>
       </article>
     `).join('');
 
@@ -3955,6 +4081,7 @@ document.querySelector('.profile-subnav').addEventListener('click', e => {
 // ========================================
 let currentPostId = null;
 const postComments = {}; // postId -> [{author, text, time}]
+var itemComments = {}; // "itemType:itemId" -> [{author, text, time}] for recruits/matches/local
 
 
 function fmtTime(ts){var d=new Date(ts);var now=new Date();var diff=Math.floor((now-d)/1000);if(diff<60)return"刚刚";if(diff<3600)return Math.floor(diff/60)+"分钟前";if(diff<86400)return Math.floor(diff/3600)+"小时前";if(diff<604800)return Math.floor(diff/86400)+"天前";return d.toLocaleDateString("zh-CN");}
@@ -3966,7 +4093,7 @@ async function openPostDetail(postId) {
   if (!p) return;
   if(!postComments[postId]){var _sc=await sb.from("comments").select("*").eq("post_id",postId).order("created_at",{ascending:true});if(_sc.data&&_sc.data.length>0){postComments[postId]=[];_sc.data.forEach(function(c){postComments[postId].push({author:c.author,text:c.content,time:fmtTime(c.created_at)});});}}
   var cmts = postComments[p.id] || [];
-  var isMyPost = p.maker === '我' || p.maker === myProfile.name;
+  var isMyPost = p.maker === '我' || (myProfile && p.maker === myProfile.name);
   var pHtml = p.platform && p.platform !== 'all' ? platformTagHtml(p.platform) : '';
   document.getElementById('overlay').classList.add('show');
   document.getElementById('overlay').onclick = closePostDetail;
@@ -3976,7 +4103,22 @@ async function openPostDetail(postId) {
   h += '<span class="post-category '+p.category+'">'+p.categoryLabel+'</span>';
   if(pHtml) h += '<div class="platform-tags" style="margin-top:8px;">'+pHtml+'</div>';
   h += '<h1 class="post-full-title">'+escapeHtml(p.title)+'</h1>';
-  h += '<div class="post-full-meta"><span class="avatar" style="'+avatarStyle(p.maker)+';display:inline-grid;width:36px;height:36px;vertical-align:middle;margin-right:8px;">'+p.avatar+'</span> '+escapeHtml(p.maker)+' · '+p.time+' · 👍 '+p.likes+' · 💬 '+p.comments+'</div></div>';
+  var _makerName = p.maker || '匿名用户';
+  var _makerAvatar = p.avatar || _makerName.slice(0,1);
+  h += '<div class="post-full-meta"><span class="avatar" style="'+avatarStyle(_makerName)+';display:inline-grid;width:36px;height:36px;vertical-align:middle;margin-right:8px;cursor:pointer;" onclick="event.stopPropagation();showFriendProfile(\''+p.maker+'\')">'+_makerAvatar+'</span> <span style="cursor:pointer;text-decoration:underline;font-weight:600;color:var(--red);" onclick="event.stopPropagation();showFriendProfile(\''+p.maker+'\')">📝 '+escapeHtml(_makerName)+'</span> · '+p.time+' · 👍 '+p.likes+' · 💬 '+p.comments+'</div>';
+  h += '<div style="margin:10px 0;padding:10px 14px;background:var(--postit);border-radius:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">';
+  h += '<span style="font-size:14px;font-weight:600;">📞 想合作接单？</span>';
+  if(p.maker && myProfile && p.maker!==myProfile.name){
+    if(myFriends.includes(p.maker)){
+      h+='<button class="btn" onclick="event.stopPropagation();chatWithFriend(\''+p.maker+'\')" style="font-size:14px;">💬 私聊TA</button>';
+    } else {
+      h+='<button class="btn" onclick="event.stopPropagation();sendFriendRequest(\''+p.maker+'\')" style="font-size:14px;margin-right:6px;">👥 加好友接单</button>';
+      h+='<span style="font-size:12px;color:rgba(45,45,45,.5);">（加好友后才能私聊）</span>';
+    }
+  } else {
+    h+='<span style="font-size:13px;color:rgba(45,45,45,.5);">这是你的帖子</span>';
+  }
+  h+='</div></div>';
   h += '<div class="post-full-body"><p>'+escapeHtml(p.desc)+'</p><p style="color:rgba(45,45,45,.5);margin-top:16px;">（完整文章...支持长文、图片、Markdown）</p></div>';
   h += '<div class="post-full-comments"><h3>💬 评论 ('+cmts.length+')</h3>';
   cmts.forEach(function(c,i){
@@ -3987,7 +4129,7 @@ async function openPostDetail(postId) {
   if(!cmts.length) h += '<p style="color:rgba(45,45,45,.4);">还没有评论，来说两句吧</p>';
   h += '</div>';
   h += '<div class="post-full-input"><button class="btn" id="likeBtn" onclick="likePost(\''+p.id+'\')" style="background:#fff0f0;margin-bottom:8px;">'+(isLiked(p.id)?'❤️ 已赞':'👍 点赞')+' ('+(p.likes||0)+')</button><br>'; h += '<div class="post-full-input"><input type="text" id="commentInput" placeholder="写下你的评论...（Enter 发送）" /><button class="emoji-btn" onclick="toggleEmojiPicker(&#39;commentInput&#39;, event)" title="表情">😊</button><button class="btn" onclick="addComment()">发送</button>';
-  if(isMyPost) h += '<button class="btn" onclick="deletePost(\''+p.id+'\');closePostDetail();" style="background:#ffd6d6;margin-left:8px;">🗑 删除</button>';
+  if(isMyPost||isAdmin) h += '<button class="btn" onclick="deletePost(\''+p.id+'\');closePostDetail();" style="background:#ffd6d6;margin-left:8px;">🗑 删除</button>';
   h += '</div></div>';
   document.body.insertAdjacentHTML('beforeend', h);
   setTimeout(function(){ var ci=document.getElementById('commentInput');if(ci)ci.focus(); },300);
@@ -4163,6 +4305,7 @@ function init() {
 initAuth().then(function(){loadAllData();});
 </script>
 
+<div class="user-popup-overlay" id="userPopupOverlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.3);z-index:1000;justify-content:center;align-items:center;" onclick="closeUserPopup()"><div class="user-popup-card" id="userPopupCard" style="background:var(--white);border-radius:12px;padding:20px;max-width:320px;width:90%;text-align:center;box-shadow:4px 4px 0 0 var(--ink);" onclick="event.stopPropagation()"></div></div>
 <div class="emoji-picker" id="emojiPicker" style="display:none;"></div>
 <input type="file" id="imgUploader" accept="image/*" style="display:none;" onchange="handleImageUpload(event)" />
 
