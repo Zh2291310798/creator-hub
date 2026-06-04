@@ -295,41 +295,47 @@ CREATE POLICY "allow_insert_auth" ON tracking_events FOR INSERT WITH CHECK (true
 
 -- 私有数据：仅自己能读写
 CREATE POLICY "chat_read_own" ON chat_messages FOR SELECT
-  USING (auth.uid() IS NOT NULL);
+  USING ((select username from profiles where id = auth.uid()) = sender OR (select username from profiles where id = auth.uid()) = recipient);
 CREATE POLICY "notif_read_own" ON notifications FOR SELECT
-  USING (auth.uid() IS NOT NULL);
+  USING ((select username from profiles where id = auth.uid()) = username);
 CREATE POLICY "notif_update_own" ON notifications FOR UPDATE
+  USING ((select username from profiles where id = auth.uid()) = username);
+CREATE POLICY "friends_read_own" ON friends FOR SELECT
+  USING ((select username from profiles where id = auth.uid()) = username);
   USING (auth.uid() IS NOT NULL);
 CREATE POLICY "friends_all_auth" ON friends FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "fr_read_own" ON friend_requests FOR SELECT
-  USING (auth.uid() IS NOT NULL);
+  USING ((select username from profiles where id = auth.uid()) = to_user OR (select username from profiles where id = auth.uid()) = from_user);
 CREATE POLICY "xp_read_own" ON xp_records FOR SELECT
-  USING (auth.uid() IS NOT NULL);
+  USING ((select username from profiles where id = auth.uid()) = username);
 CREATE POLICY "ob_read_own" ON onboarding_status FOR SELECT
-  USING (auth.uid() IS NOT NULL);
+  USING ((select username from profiles where id = auth.uid()) = username);
 CREATE POLICY "ob_update_own" ON onboarding_status FOR UPDATE
+  USING ((select username from profiles where id = auth.uid()) = username);
   USING (auth.uid() IS NOT NULL);
 CREATE POLICY "post_likes_all_auth" ON post_likes FOR ALL USING (true) WITH CHECK (true);
 
 CREATE POLICY "track_read_own" ON tracking_events FOR SELECT
   USING (true);
 CREATE POLICY "profile_update_own" ON profiles FOR UPDATE
-  USING (auth.uid() = id);
+  USING ((select username from profiles where id = auth.uid()) = username);
 CREATE POLICY "profile_insert_own" ON profiles FOR INSERT
   WITH CHECK (auth.uid() = id);
 
 -- 删除：仅自己的数据
 CREATE POLICY "posts_delete_own_auth" ON posts FOR DELETE
+  USING ((select username from profiles where id = auth.uid()) = author);
   USING (auth.uid() IS NOT NULL);
 CREATE POLICY "posts_update_own_auth" ON posts FOR UPDATE USING (auth.uid() IS NOT NULL);
 CREATE POLICY "recruits_delete_own_auth" ON recruits FOR DELETE
-  USING (auth.uid() IS NOT NULL);
+  USING ((select username from profiles where id = auth.uid()) = poster);
 CREATE POLICY "local_delete_own_auth" ON local_demands FOR DELETE
+  USING ((select username from profiles where id = auth.uid()) = poster);
   USING (auth.uid() IS NOT NULL);
 CREATE POLICY "fr_delete_own" ON friend_requests FOR DELETE USING (auth.uid() IS NOT NULL);
 CREATE POLICY "fr_insert_own" ON friend_requests FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
 CREATE POLICY "friends_delete_own_auth" ON friends FOR DELETE
-  USING (auth.uid() IS NOT NULL);
+  USING ((select username from profiles where id = auth.uid()) = username);
 
 -- ============================================
 -- 实时（Realtime）— 前端可订阅
